@@ -21,6 +21,14 @@
       </div>
       <div class="header-actions">
         <span id="conn-status" class="status-pill status-checking" title="Checking API status...">● Checking</span>
+        <button id="btn-expand-window" class="icon-btn" title="Expand to Dedicated Window (Maximum Area)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <polyline points="9 21 3 21 3 15"></polyline>
+            <line x1="21" y1="3" x2="14" y2="10"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
+          </svg>
+        </button>
         <button id="btn-toggle-settings" class="icon-btn" title="API Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"></circle>
@@ -167,40 +175,40 @@
             <!-- Metadata Form -->
             <form id="song-harvest-form">
               
-              <!-- English Title -->
-              <div class="form-group">
-                <div class="label-with-hint">
-                  <label for="f-title-en">Song Title (English / Romanized)</label>
-                  <button type="button" id="btn-search-yt-from-title" class="btn-text-link" title="Search this title on YouTube">
-                    🔍 Find on YouTube
-                  </button>
+              <!-- Row 1: English & Nepali Titles -->
+              <div class="form-row">
+                <div class="form-group col">
+                  <div class="label-with-hint">
+                    <label for="f-title-en">Song Title (English)</label>
+                    <button type="button" id="btn-search-yt-from-title" class="btn-text-link" title="Search this title on YouTube">
+                      🔍 Find on YT
+                    </button>
+                  </div>
+                  <input type="text" id="f-title-en" required placeholder="e.g. Yeti Dherai Maya Diyee" />
                 </div>
-                <input type="text" id="f-title-en" required placeholder="e.g. Yeti Dherai Maya Diyee" />
+                <div class="form-group col">
+                  <label for="f-title-np">Devanagari Title (नेपाली — Optional)</label>
+                  <input type="text" id="f-title-np" class="font-devanagari" placeholder="e.g. यति धेरै माया दिई" />
+                </div>
               </div>
 
-              <!-- Nepali Title -->
-              <div class="form-group">
-                <label for="f-title-np">Devanagari Title (नेपाली शीर्षक — Optional)</label>
-                <input type="text" id="f-title-np" class="font-devanagari" placeholder="e.g. यति धेरै माया दिई" />
-              </div>
-
-              <!-- Primary Singer(s) -->
-              <div class="form-group">
-                <div class="label-with-hint">
-                  <label for="f-singers">Primary Artist(s) / Singer(s)</label>
-                  <span class="label-hint">Comma-separated</span>
+              <!-- Row 2: Singers & Featuring -->
+              <div class="form-row">
+                <div class="form-group col">
+                  <div class="label-with-hint">
+                    <label for="f-singers">Artist(s) / Singer(s)</label>
+                    <span class="label-hint">Comma-separated</span>
+                  </div>
+                  <input type="text" id="f-singers" required placeholder="e.g. Narayan Gopal" />
+                  <input type="hidden" id="f-artist-name" />
                 </div>
-                <input type="text" id="f-singers" required placeholder="e.g. Narayan Gopal" />
-                <input type="hidden" id="f-artist-name" />
-              </div>
-
-              <!-- Featuring Artist(s) -->
-              <div class="form-group">
-                <div class="label-with-hint">
-                  <label for="f-featuring">Featuring Artist(s)</label>
-                  <span class="label-hint">Optional</span>
+                <div class="form-group col">
+                  <div class="label-with-hint">
+                    <label for="f-featuring">Featuring Artist(s)</label>
+                    <span class="label-hint">Optional</span>
+                  </div>
+                  <input type="text" id="f-featuring" placeholder="e.g. Yabesh Thapa" />
                 </div>
-                <input type="text" id="f-featuring" placeholder="e.g. Yabesh Thapa" />
               </div>
 
               <!-- Additional Credits (Lyricists & Composers) -->
@@ -221,25 +229,22 @@
                 </div>
               </details>
 
-              <!-- Movie Name (Optional) -->
-              <div class="form-group">
-                <div class="label-with-hint">
-                  <label for="f-movie-name">Movie / Film Name</label>
-                  <span class="label-hint">Optional (चलचित्र)</span>
+              <!-- Row 3: Chords Progression & Scale/Key -->
+              <div class="form-row">
+                <div class="form-group col" style="flex: 1.3;">
+                  <div class="label-with-hint">
+                    <label for="f-chords">Chords Progression</label>
+                    <span class="label-hint">e.g. F, Gm, Bb, C</span>
+                  </div>
+                  <input type="text" id="f-chords" placeholder="e.g. F, Gm, Bb, Dm, A, C" />
                 </div>
-                <input type="text" id="f-movie-name" placeholder="e.g. Kabaddi 4, Loot" />
+                <div class="form-group col" style="flex: 0.9;">
+                  <label for="f-scale">Scale / Key</label>
+                  <input type="text" id="f-scale" placeholder="e.g. F Major" value="F Major" />
+                </div>
               </div>
 
-              <!-- Chords Progression (Extracted or Editable) -->
-              <div class="form-group">
-                <div class="label-with-hint">
-                  <label for="f-chords">Guitar Chords Progression</label>
-                  <span class="label-hint">e.g. F, Gm, Bb, Dm, A, C</span>
-                </div>
-                <input type="text" id="f-chords" placeholder="e.g. F, Gm, Bb, Dm, A, C" />
-              </div>
-
-              <!-- Grid: Genre & Release Year -->
+              <!-- Row 4: Genre, Year, Movie & BPM -->
               <div class="form-row">
                 <div class="form-group col">
                   <label for="f-genre">Genre</label>
@@ -254,22 +259,15 @@
                     <option value="Ghazal">Ghazal</option>
                   </select>
                 </div>
-                <div class="form-group col">
-                  <label for="f-year">Release Year</label>
-                  <input type="number" id="f-year" min="1950" max="2030" />
-                </div>
-              </div>
-
-              <!-- Grid: Scale & BPM -->
-              <div class="form-row">
-                <div class="form-group col">
-                  <label for="f-scale">Scale / Key</label>
-                  <input type="text" id="f-scale" placeholder="e.g. F Major" value="F Major" />
+                <div class="form-group col" style="max-width: 85px;">
+                  <label for="f-year">Year</label>
+                  <input type="number" id="f-year" min="1950" max="2030" placeholder="2024" />
                 </div>
                 <div class="form-group col">
-                  <label for="f-bpm">BPM (Optional)</label>
-                  <input type="number" id="f-bpm" placeholder="e.g. 78" />
+                  <label for="f-movie-name">Movie / Film</label>
+                  <input type="text" id="f-movie-name" placeholder="Optional" />
                 </div>
+                <input type="hidden" id="f-bpm" />
               </div>
 
               <!-- YouTube Video ID (Editable / Linkable from Sidebar) -->

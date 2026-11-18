@@ -7,6 +7,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   // DOM Elements - Header & Settings
   const elStatus = document.getElementById('conn-status');
+  const btnExpandWindow = document.getElementById('btn-expand-window');
   const elSettingsPanel = document.getElementById('settings-panel');
   const btnToggleSettings = document.getElementById('btn-toggle-settings');
   const btnCloseSettings = document.getElementById('btn-close-settings');
@@ -570,6 +571,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ========================================================
+  // WINDOW MODE & POPOUT EXPANDER
+  // ========================================================
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const isWindowMode = urlParams.get('mode') === 'window' || urlParams.get('mode') === 'tab' || window.innerWidth > 800;
+  if (isWindowMode) {
+    document.body.classList.add('expanded-mode');
+    if (btnExpandWindow) btnExpandWindow.classList.add('hidden');
+  }
+
+  if (btnExpandWindow) {
+    btnExpandWindow.addEventListener('click', async () => {
+      try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const activeTab = tabs[0];
+        const tabId = activeTab ? activeTab.id : '';
+        const tabUrl = activeTab && activeTab.url ? encodeURIComponent(activeTab.url) : '';
+        const popoutUrl = chrome.runtime.getURL(`src/popup/popup.html?mode=window&targetTabId=${tabId}&targetUrl=${tabUrl}`);
+
+        if (chrome.windows && chrome.windows.create) {
+          chrome.windows.create({
+            url: popoutUrl,
+            type: 'popup',
+            width: 1160,
+            height: 820,
+            focused: true
+          });
+        } else {
+          chrome.tabs.create({ url: popoutUrl });
+        }
+      } catch (err) {
+        chrome.tabs.create({ url: chrome.runtime.getURL('src/popup/popup.html?mode=tab') });
+      }
+    });
+  }
+
+  // ========================================================
   // ACTIVE TAB DISCOVERY & EXTRACTION ROUTER
   // ========================================================
 
@@ -578,8 +616,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('loading-title').textContent = 'Detecting Music Page...';
     document.getElementById('loading-desc').textContent = 'Reading page DOM, chord sheets, and timed subtitles.';
 
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const activeTab = tabs[0];
+    let activeTab = null;
+    const targetTabIdParam = urlParams.get('targetTabId');
+    if (targetTabIdParam) {
+      try {
+        activeTab = await chrome.tabs.get(parseInt(targetTabIdParam, 10));
+      } catch (e) {
+        activeTab = null;
+      }
+    }
+
+    if (!activeTab || !activeTab.url || activeTab.url.includes(chrome.runtime.id)) {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      activeTab = tabs[0];
+
+      // If active tab is extension itself (e.g. popout window or full tab), find the target music tab
+      if (activeTab && activeTab.url && activeTab.url.includes(chrome.runtime.id)) {
+        const allTabs = await chrome.tabs.query({});
+        const webTab = allTabs.find(t => t.url && !t.url.includes(chrome.runtime.id) && (
+          t.url.includes('youtube.com') || t.url.includes('.blogspot.com') || t.url.includes('nepalisongchord.com')
+        ));
+        if (webTab) {
+          activeTab = webTab;
+        }
+      }
+    }
 
     if (!activeTab || !activeTab.url) {
       updateSourceIndicator('GENERIC', 'No Active Tab');
