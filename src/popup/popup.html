@@ -146,176 +146,249 @@
           <button id="btn-unlink-target" type="button" class="btn-text-tiny" title="Cancel edit mode">&times; Cancel</button>
         </div>
 
-        <!-- Video & Audio Preview Card -->
-        <div class="video-preview-card">
-          <div class="thumb-wrap">
-            <img id="prev-thumbnail" src="" alt="Thumbnail" />
-            <span id="prev-duration" class="badge-duration">0:00</span>
-          </div>
-          <div class="video-meta">
-            <span id="prev-yt-id" class="badge-ytid">YT ID: None</span>
-            <div id="prev-captions-badge" class="badge-captions">0 lines</div>
-          </div>
-        </div>
-
-        <!-- Metadata Form -->
-        <form id="song-harvest-form">
+        <!-- 2-COLUMN SPLIT CONTAINER (Main Form on Left, YouTube Matcher Sidebar on Right) -->
+        <div class="ready-split-layout">
           
-          <!-- English Title -->
-          <div class="form-group">
-            <label for="f-title-en">Song Title (English / Romanized)</label>
-            <input type="text" id="f-title-en" required placeholder="e.g. Malai Bhanna Aaundaina" />
-          </div>
-
-          <!-- Nepali Title -->
-          <div class="form-group">
-            <label for="f-title-np">Devanagari Title (नेपाली शीर्षक — Optional)</label>
-            <input type="text" id="f-title-np" class="font-devanagari" placeholder="e.g. मलाई भन्न आउँदैन" />
-          </div>
-
-          <!-- Primary Singer(s) -->
-          <div class="form-group">
-            <div class="label-with-hint">
-              <label for="f-singers">Primary Artist(s) / Singer(s)</label>
-              <span class="label-hint">Comma-separated</span>
+          <!-- LEFT COLUMN: Song Metadata & Lyrics Editor -->
+          <div class="editor-main-col">
+            
+            <!-- Video & Audio Preview Card -->
+            <div class="video-preview-card">
+              <div class="thumb-wrap">
+                <img id="prev-thumbnail" src="" alt="Thumbnail" />
+                <span id="prev-duration" class="badge-duration">0:00</span>
+              </div>
+              <div class="video-meta">
+                <span id="prev-yt-id" class="badge-ytid">YT ID: None</span>
+                <div id="prev-captions-badge" class="badge-captions">0 lines</div>
+              </div>
             </div>
-            <input type="text" id="f-singers" required placeholder="e.g. Aastha, Naren Limbu" />
-            <input type="hidden" id="f-artist-name" />
-          </div>
 
-          <!-- Featuring Artist(s) -->
-          <div class="form-group">
-            <div class="label-with-hint">
-              <label for="f-featuring">Featuring Artist(s)</label>
-              <span class="label-hint">Optional</span>
-            </div>
-            <input type="text" id="f-featuring" placeholder="e.g. Yabesh Thapa" />
-          </div>
-
-          <!-- Additional Credits (Lyricists & Composers) -->
-          <details class="lyrics-accordion credits-accordion">
-            <summary>
-              <span id="credits-summary-text">Additional Credits (Lyricists, Composers)</span>
-              <span class="chevron">▼</span>
-            </summary>
-            <div class="credits-preview-body">
+            <!-- Metadata Form -->
+            <form id="song-harvest-form">
+              
+              <!-- English Title -->
               <div class="form-group">
-                <label for="f-lyricists">Lyricist(s)</label>
-                <input type="text" id="f-lyricists" placeholder="e.g. Naren Limbu" />
+                <div class="label-with-hint">
+                  <label for="f-title-en">Song Title (English / Romanized)</label>
+                  <button type="button" id="btn-search-yt-from-title" class="btn-text-link" title="Search this title on YouTube">
+                    🔍 Find on YouTube
+                  </button>
+                </div>
+                <input type="text" id="f-title-en" required placeholder="e.g. Yeti Dherai Maya Diyee" />
               </div>
-              <div class="form-group" style="margin-bottom: 0;">
-                <label for="f-composers">Composer(s) / Music</label>
-                <input type="text" id="f-composers" placeholder="e.g. Aastha Band" />
-              </div>
-            </div>
-          </details>
 
-          <!-- Movie Name (Optional) -->
-          <div class="form-group">
-            <div class="label-with-hint">
-              <label for="f-movie-name">Movie / Film Name</label>
-              <span class="label-hint">Optional (चलचित्र)</span>
-            </div>
-            <input type="text" id="f-movie-name" placeholder="e.g. Kabaddi 4, Loot" />
+              <!-- Nepali Title -->
+              <div class="form-group">
+                <label for="f-title-np">Devanagari Title (नेपाली शीर्षक — Optional)</label>
+                <input type="text" id="f-title-np" class="font-devanagari" placeholder="e.g. यति धेरै माया दिई" />
+              </div>
+
+              <!-- Primary Singer(s) -->
+              <div class="form-group">
+                <div class="label-with-hint">
+                  <label for="f-singers">Primary Artist(s) / Singer(s)</label>
+                  <span class="label-hint">Comma-separated</span>
+                </div>
+                <input type="text" id="f-singers" required placeholder="e.g. Narayan Gopal" />
+                <input type="hidden" id="f-artist-name" />
+              </div>
+
+              <!-- Featuring Artist(s) -->
+              <div class="form-group">
+                <div class="label-with-hint">
+                  <label for="f-featuring">Featuring Artist(s)</label>
+                  <span class="label-hint">Optional</span>
+                </div>
+                <input type="text" id="f-featuring" placeholder="e.g. Yabesh Thapa" />
+              </div>
+
+              <!-- Additional Credits (Lyricists & Composers) -->
+              <details class="lyrics-accordion credits-accordion">
+                <summary>
+                  <span id="credits-summary-text">Additional Credits (Lyricists, Composers)</span>
+                  <span class="chevron">▼</span>
+                </summary>
+                <div class="credits-preview-body">
+                  <div class="form-group">
+                    <label for="f-lyricists">Lyricist(s)</label>
+                    <input type="text" id="f-lyricists" placeholder="e.g. Deepak Jungam" />
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label for="f-composers">Composer(s) / Music</label>
+                    <input type="text" id="f-composers" placeholder="e.g. Narayan Gopal" />
+                  </div>
+                </div>
+              </details>
+
+              <!-- Movie Name (Optional) -->
+              <div class="form-group">
+                <div class="label-with-hint">
+                  <label for="f-movie-name">Movie / Film Name</label>
+                  <span class="label-hint">Optional (चलचित्र)</span>
+                </div>
+                <input type="text" id="f-movie-name" placeholder="e.g. Kabaddi 4, Loot" />
+              </div>
+
+              <!-- Chords Progression (Extracted or Editable) -->
+              <div class="form-group">
+                <div class="label-with-hint">
+                  <label for="f-chords">Guitar Chords Progression</label>
+                  <span class="label-hint">e.g. F, Gm, Bb, Dm, A, C</span>
+                </div>
+                <input type="text" id="f-chords" placeholder="e.g. F, Gm, Bb, Dm, A, C" />
+              </div>
+
+              <!-- Grid: Genre & Release Year -->
+              <div class="form-row">
+                <div class="form-group col">
+                  <label for="f-genre">Genre</label>
+                  <select id="f-genre">
+                    <option value="Adhunik">Adhunik (आधुनिक)</option>
+                    <option value="Pop/Rock">Pop / Rock</option>
+                    <option value="Lok Dohori">Lok Dohori (लोक दोहोरी)</option>
+                    <option value="Nephop">Nephop (नेपहप)</option>
+                    <option value="Folk">Traditional Folk</option>
+                    <option value="Classical">Classical (शास्त्रीय)</option>
+                    <option value="Filmy">Filmy</option>
+                    <option value="Ghazal">Ghazal</option>
+                  </select>
+                </div>
+                <div class="form-group col">
+                  <label for="f-year">Release Year</label>
+                  <input type="number" id="f-year" min="1950" max="2030" />
+                </div>
+              </div>
+
+              <!-- Grid: Scale & BPM -->
+              <div class="form-row">
+                <div class="form-group col">
+                  <label for="f-scale">Scale / Key</label>
+                  <input type="text" id="f-scale" placeholder="e.g. F Major" value="F Major" />
+                </div>
+                <div class="form-group col">
+                  <label for="f-bpm">BPM (Optional)</label>
+                  <input type="number" id="f-bpm" placeholder="e.g. 78" />
+                </div>
+              </div>
+
+              <!-- YouTube Video ID (Editable / Linkable from Sidebar) -->
+              <div class="form-group">
+                <div class="label-with-hint">
+                  <label for="f-youtube-id">YouTube Video ID (or URL)</label>
+                  <span class="label-hint">11-char ID or Watch URL</span>
+                </div>
+                <div class="input-with-action">
+                  <input type="text" id="f-youtube-id" placeholder="e.g. x7faDV25Dxs" />
+                  <button type="button" id="btn-trigger-yt-search" class="action-btn-search" title="Search on YouTube">
+                    🔍 Search Video
+                  </button>
+                </div>
+              </div>
+
+              <!-- Lyrics Accordion (CC Subtitles or Chords/Plain Lyrics) -->
+              <details class="lyrics-accordion" open>
+                <summary>
+                  <div class="summary-title-wrap">
+                    <span id="accordion-summary-text">Lyrics Lines (0 lines)</span>
+                    <span id="sub-source-pill" class="pill-verified hidden">✓ Source</span>
+                  </div>
+                  <span class="chevron">▼</span>
+                </summary>
+                <div class="lyrics-preview-body">
+                  <!-- Subtitle Track Selector (if YouTube CC) -->
+                  <div id="sub-track-container" class="sub-track-row hidden">
+                    <label for="f-sub-track">CC Track:</label>
+                    <select id="f-sub-track"></select>
+                  </div>
+
+                  <!-- Lyrics Mode Tabs: Line Preview vs Raw Text Editor -->
+                  <div class="lyrics-mode-bar">
+                    <button type="button" id="btn-mode-lines" class="mode-btn active">Lines & Chords Preview</button>
+                    <button type="button" id="btn-mode-raw" class="mode-btn">Chord Sheet / Text Editor</button>
+                  </div>
+
+                  <!-- Lines List View -->
+                  <div id="lyrics-lines-list" class="lines-list">
+                    <!-- Line previews injected here -->
+                  </div>
+
+                  <!-- Raw Text View (Hidden by default) -->
+                  <div id="lyrics-raw-container" class="lyrics-raw-container hidden">
+                    <textarea id="f-lyrics-raw" rows="8" placeholder="Paste or edit chord sheet here (chords on top, lyrics underneath)..."></textarea>
+                  </div>
+                </div>
+              </details>
+
+              <!-- Publish / Update Action Bar -->
+              <div class="form-actions">
+                <button type="button" id="btn-match-catalog" class="btn btn-outline" title="Merge scraped data into an existing GeetKosh song">
+                  🔗 Merge into Existing
+                </button>
+                <button type="submit" id="btn-publish" class="btn btn-publish">
+                  <span class="btn-icon">🚀</span>
+                  <span id="btn-publish-text" class="btn-text">Publish to GeetKosh</span>
+                </button>
+              </div>
+
+            </form>
+
           </div>
 
-          <!-- Chords Progression (Extracted or Editable) -->
-          <div class="form-group">
-            <div class="label-with-hint">
-              <label for="f-chords">Guitar Chords Progression</label>
-              <span class="label-hint">e.g. F, Gm, Bb, C</span>
-            </div>
-            <input type="text" id="f-chords" placeholder="e.g. F, C, Bb, Gm" />
-          </div>
-
-          <!-- Grid: Genre & Release Year -->
-          <div class="form-row">
-            <div class="form-group col">
-              <label for="f-genre">Genre</label>
-              <select id="f-genre">
-                <option value="Pop/Rock">Pop / Rock</option>
-                <option value="Adhunik">Adhunik (आधुनिक)</option>
-                <option value="Lok Dohori">Lok Dohori (लोक दोहोरी)</option>
-                <option value="Nephop">Nephop (नेपहप)</option>
-                <option value="Folk">Traditional Folk</option>
-                <option value="Classical">Classical (शास्त्रीय)</option>
-                <option value="Filmy">Filmy</option>
-                <option value="Ghazal">Ghazal</option>
-              </select>
-            </div>
-            <div class="form-group col">
-              <label for="f-year">Release Year</label>
-              <input type="number" id="f-year" min="1950" max="2030" />
-            </div>
-          </div>
-
-          <!-- Grid: Scale & BPM -->
-          <div class="form-row">
-            <div class="form-group col">
-              <label for="f-scale">Scale / Key</label>
-              <input type="text" id="f-scale" placeholder="e.g. F Major" value="F Major" />
-            </div>
-            <div class="form-group col">
-              <label for="f-bpm">BPM (Optional)</label>
-              <input type="number" id="f-bpm" placeholder="e.g. 78" />
-            </div>
-          </div>
-
-          <!-- YouTube Video ID (Editable / Auto-detected from Embed) -->
-          <div class="form-group">
-            <div class="label-with-hint">
-              <label for="f-youtube-id">YouTube Video ID (or URL)</label>
-              <span class="label-hint">11-char ID or Watch URL</span>
-            </div>
-            <input type="text" id="f-youtube-id" placeholder="e.g. larNU8IQXdE" />
-          </div>
-
-          <!-- Lyrics Accordion (CC Subtitles or Chords/Plain Lyrics) -->
-          <details class="lyrics-accordion" open>
-            <summary>
-              <div class="summary-title-wrap">
-                <span id="accordion-summary-text">Lyrics Lines (0 lines)</span>
-                <span id="sub-source-pill" class="pill-verified hidden">✓ Source</span>
+          <!-- RIGHT COLUMN: YouTube Video Matcher Sidebar -->
+          <aside class="youtube-sidebar-col">
+            
+            <div class="sidebar-header">
+              <div class="sidebar-title-wrap">
+                <span class="yt-play-icon">▶</span>
+                <h3>YouTube Matcher</h3>
               </div>
-              <span class="chevron">▼</span>
-            </summary>
-            <div class="lyrics-preview-body">
-              <!-- Subtitle Track Selector (if YouTube CC) -->
-              <div id="sub-track-container" class="sub-track-row hidden">
-                <label for="f-sub-track">CC Track:</label>
-                <select id="f-sub-track"></select>
-              </div>
+              <span id="yt-match-status-badge" class="badge-status-unlinked">Unlinked</span>
+            </div>
 
-              <!-- Lyrics Mode Tabs: Line Preview vs Raw Text Editor -->
-              <div class="lyrics-mode-bar">
-                <button type="button" id="btn-mode-lines" class="mode-btn active">Lines Preview</button>
-                <button type="button" id="btn-mode-raw" class="mode-btn">Plain Text Editor</button>
-              </div>
+            <!-- YouTube Search Input -->
+            <div class="sidebar-search-box">
+              <input type="text" id="yt-sidebar-search-input" placeholder="Search song on YouTube..." autocomplete="off" />
+              <button type="button" id="btn-yt-sidebar-search" class="btn-yt-search" title="Search YouTube">🔍</button>
+            </div>
 
-              <!-- Lines List View -->
-              <div id="lyrics-lines-list" class="lines-list">
-                <!-- Line previews injected here -->
+            <!-- Selected Video Card (Active Linkage) -->
+            <div id="yt-selected-card" class="yt-selected-card hidden">
+              <div class="selected-thumb-wrap">
+                <img id="yt-selected-thumb" src="" alt="Selected Video" />
+                <span id="yt-selected-duration" class="badge-duration">0:00</span>
               </div>
-
-              <!-- Raw Text View (Hidden by default) -->
-              <div id="lyrics-raw-container" class="lyrics-raw-container hidden">
-                <textarea id="f-lyrics-raw" rows="8" placeholder="Paste or edit plain lyric lines here (one per line)..."></textarea>
+              <div class="selected-meta">
+                <span class="selected-tag">Selected Video:</span>
+                <h4 id="yt-selected-title">Video Title</h4>
+                <span id="yt-selected-channel">Channel Name</span>
+                <div class="selected-actions">
+                  <button type="button" id="btn-confirm-yt-link" class="btn btn-confirm-yt">✓ Link to Song</button>
+                  <button type="button" id="btn-cancel-yt-select" class="btn-cancel-link" title="Cancel">&times;</button>
+                </div>
               </div>
             </div>
-          </details>
 
-          <!-- Publish / Update Action Bar -->
-          <div class="form-actions">
-            <button type="button" id="btn-match-catalog" class="btn btn-outline" title="Merge scraped data into an existing GeetKosh song">
-              🔗 Merge into Existing
-            </button>
-            <button type="submit" id="btn-publish" class="btn btn-publish">
-              <span class="btn-icon">🚀</span>
-              <span id="btn-publish-text" class="btn-text">Publish to GeetKosh</span>
-            </button>
-          </div>
+            <!-- Loading State -->
+            <div id="yt-sidebar-loading" class="yt-sidebar-state hidden">
+              <div class="spinner-small"></div>
+              <span>Searching YouTube videos...</span>
+            </div>
 
-        </form>
+            <!-- Empty / Initial State -->
+            <div id="yt-sidebar-empty" class="yt-sidebar-state">
+              <div class="empty-yt-icon">🔍</div>
+              <p>Click "Find on YouTube" or enter keywords above to search official videos and audio.</p>
+            </div>
+
+            <!-- Results List -->
+            <div id="yt-sidebar-results" class="yt-sidebar-results hidden">
+              <!-- Dynamically populated video cards -->
+            </div>
+
+          </aside>
+
+        </div>
 
       </div>
 

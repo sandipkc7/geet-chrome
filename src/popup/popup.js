@@ -1,6 +1,7 @@
 /**
  * GeetKosh Harvester & Catalog Hub — Popup Controller
- * Multi-source support: YouTube CC, Blogger Chords, NepaliSongChord, and Universal Catalog Editor.
+ * Multi-source support: YouTube CC, Blogger Chords, NepaliSongChord, Universal Catalog Editor,
+ * and Zero-Quota YouTube Video Search & Linking Sidebar.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -71,6 +72,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fBpm = document.getElementById('f-bpm');
   const fYoutubeId = document.getElementById('f-youtube-id');
 
+  // DOM Elements - YouTube Matcher Sidebar
+  const btnSearchYtFromTitle = document.getElementById('btn-search-yt-from-title');
+  const btnTriggerYtSearch = document.getElementById('btn-trigger-yt-search');
+  const ytSidebarSearchInput = document.getElementById('yt-sidebar-search-input');
+  const btnYtSidebarSearch = document.getElementById('btn-yt-sidebar-search');
+  const ytMatchStatusBadge = document.getElementById('yt-match-status-badge');
+  const ytSelectedCard = document.getElementById('yt-selected-card');
+  const ytSelectedThumb = document.getElementById('yt-selected-thumb');
+  const ytSelectedDuration = document.getElementById('yt-selected-duration');
+  const ytSelectedTitle = document.getElementById('yt-selected-title');
+  const ytSelectedChannel = document.getElementById('yt-selected-channel');
+  const btnConfirmYtLink = document.getElementById('btn-confirm-yt-link');
+  const btnCancelYtSelect = document.getElementById('btn-cancel-yt-select');
+  const ytSidebarLoading = document.getElementById('yt-sidebar-loading');
+  const ytSidebarEmpty = document.getElementById('yt-sidebar-empty');
+  const ytSidebarResults = document.getElementById('yt-sidebar-results');
+
   // Lyrics Section
   const lyricsSummaryText = document.getElementById('accordion-summary-text');
   const subSourcePill = document.getElementById('sub-source-pill');
@@ -94,6 +112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentSongData = null;
   let targetCatalogSong = null; // Set when editing or merging into an existing catalog song
   let searchDebounceTimer = null;
+  let pendingSelectedVideo = null; // Staged video in the sidebar before confirmation
   let config = {
     backend_url: 'https://geet-backend.sandipkc.com.np',
     bearer_token: ''
@@ -120,6 +139,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+
+  /**
+   * Helper: Parses mm:ss duration string into seconds
+   */
+  function parseDurationString(durStr) {
+    if (!durStr) return 0;
+    const parts = durStr.split(':').map(p => parseInt(p, 10));
+    if (parts.length === 2) {
+      return (parts[0] * 60) + parts[1];
+    } else if (parts.length === 3) {
+      return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+    }
+    return 0;
   }
 
   /**
@@ -212,6 +245,193 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     sourceDetailsText.textContent = label || 'Active Page';
   }
+
+  // ========================================================
+  // ZERO-QUOTA YOUTUBE SEARCH & MATCHER SIDEBAR
+  // ========================================================
+
+  /**
+   * Queries YouTube directly via public search HTML without API quota cost
+   */
+  async function searchYouTube(query) {
+    if (!query || !query.trim()) return [];
+    const cleanQ = query.trim();
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(cleanQ)}`;
+    
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'Accept-Language': 'en-US,en;q=0.9'
+        }
+      });
+      const html = await res.text();
+      
+      const match = html.match(/var ytInitialData\s*=\s*({.+?});<\/script>/) ||
+                    html.match(/ytInitialData\s*=\s*({.+?});/);
+      if (!match) return [];
+
+      const parsed = JSON.parse(match[1]);
+      const videos = [];
+      const contents = parsed?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || [];
+
+      for (const section of contents) {
+        const items = section?.itemSectionRenderer?.contents || [];
+        for (const item of items) {
+          const v = item?.videoRenderer;
+          if (v && v.videoId) {
+            const title = v.title?.runs?.map(r => r.text).join('') || '';
+            const channel = v.ownerText?.runs?.map(r => r.text).join('') || '';
+            const duration = v.lengthText?.simpleText || '';
+            const thumbnails = v.thumbnail?.thumbnails || [];
+            const thumb = thumbnails.length > 0
+              ? thumbnails[thumbnails.length - 1].url
+              : `https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg`;
+
+            videos.push({
+              videoId: v.videoId,
+              title,
+              channel,
+              duration,
+              thumbnail: thumb
+            });
+          }
+        }
+      }
+      return videos;
+    } catch (err) {
+      console.error('YouTube search error:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Executes YouTube sidebar search and displays video cards
+   */
+  async function triggerYouTubeSidebarSearch(query) {
+    const q = query || ytSidebarSearchInput.value.trim();
+    if (!q) {
+      showToast('Enter a song title or artist to search YouTube.', 'info');
+      return;
+    }
+
+    ytSidebarSearchInput.value = q;
+    ytSidebarLoading.classList.remove('hidden');
+    ytSidebarEmpty.classList.add('hidden');
+    ytSidebarResults.classList.add('hidden');
+    ytSidebarResults.innerHTML = '';
+
+    const videos = await searchYouTube(q);
+    ytSidebarLoading.classList.add('hidden');
+
+    if (videos.length === 0) {
+      ytSidebarEmpty.classList.remove('hidden');
+      ytSidebarEmpty.innerHTML = `<div class="empty-yt-icon">⚠️</div><p>No YouTube videos found matching "${escapeHtml(q)}". Try different keywords.</p>`;
+      return;
+    }
+
+    ytSidebarResults.classList.remove('hidden');
+
+    videos.slice(0, 15).forEach(v => {
+      const card = document.createElement('div');
+      card.className = 'yt-result-card';
+      if (fYoutubeId.value === v.videoId) {
+        card.classList.add('selected');
+      }
+
+      card.innerHTML = `
+        <div class="yt-card-thumb">
+          <img src="${escapeHtml(v.thumbnail)}" alt="${escapeHtml(v.title)}" loading="lazy" />
+          <span class="badge-duration">${escapeHtml(v.duration || '0:00')}</span>
+        </div>
+        <div class="yt-card-info">
+          <span class="yt-card-title" title="${escapeHtml(v.title)}">${escapeHtml(v.title)}</span>
+          <span class="yt-card-channel">${escapeHtml(v.channel)}</span>
+          <button type="button" class="btn-select-yt">Select & Link</button>
+        </div>
+      `;
+
+      card.addEventListener('click', () => {
+        selectYouTubeVideoForPreview(v);
+      });
+
+      card.querySelector('.btn-select-yt').addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectYouTubeVideoForPreview(v);
+      });
+
+      ytSidebarResults.appendChild(card);
+    });
+  }
+
+  /**
+   * Stages a selected YouTube video into the confirmation card
+   */
+  function selectYouTubeVideoForPreview(video) {
+    pendingSelectedVideo = video;
+    ytSelectedCard.classList.remove('hidden');
+    ytSelectedThumb.src = video.thumbnail;
+    ytSelectedDuration.textContent = video.duration || '0:00';
+    ytSelectedTitle.textContent = video.title;
+    ytSelectedChannel.textContent = video.channel;
+
+    // Highlight card in results list
+    const allCards = ytSidebarResults.querySelectorAll('.yt-result-card');
+    allCards.forEach(c => c.classList.remove('selected'));
+  }
+
+  /**
+   * Confirms and links the selected YouTube video into the song form
+   */
+  btnConfirmYtLink.addEventListener('click', () => {
+    if (!pendingSelectedVideo) return;
+
+    const vid = pendingSelectedVideo.videoId;
+    fYoutubeId.value = vid;
+    prevYtId.textContent = `YT ID: ${vid}`;
+    prevThumbnail.src = pendingSelectedVideo.thumbnail;
+    prevDuration.textContent = pendingSelectedVideo.duration || '0:00';
+
+    if (currentSongData) {
+      currentSongData.youtube_video_id = vid;
+      currentSongData.thumbnail_url = pendingSelectedVideo.thumbnail;
+      currentSongData.duration_seconds = parseDurationString(pendingSelectedVideo.duration);
+    }
+
+    // Update status badge
+    ytMatchStatusBadge.textContent = 'Linked';
+    ytMatchStatusBadge.className = 'badge-status-linked';
+
+    showToast(`✓ Linked YouTube Video: "${pendingSelectedVideo.title}"`, 'success');
+  });
+
+  btnCancelYtSelect.addEventListener('click', () => {
+    pendingSelectedVideo = null;
+    ytSelectedCard.classList.add('hidden');
+  });
+
+  // Sidebar search button & enter key
+  btnYtSidebarSearch.addEventListener('click', () => {
+    triggerYouTubeSidebarSearch();
+  });
+
+  ytSidebarSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      triggerYouTubeSidebarSearch();
+    }
+  });
+
+  // Quick Action: Search from Title
+  btnSearchYtFromTitle.addEventListener('click', () => {
+    const q = `${fTitleEn.value || ''} ${fSingers.value || ''}`.trim();
+    triggerYouTubeSidebarSearch(q);
+  });
+
+  // Quick Action: Search from YouTube ID input
+  btnTriggerYtSearch.addEventListener('click', () => {
+    const q = `${fTitleEn.value || ''} ${fSingers.value || ''}`.trim();
+    triggerYouTubeSidebarSearch(q);
+  });
 
   // ========================================================
   // UNIVERSAL CATALOG SEARCH & AUTOCOMPLETE
@@ -326,6 +546,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Merge / Populate into Form
       populateFormFromCatalog(song);
       setViewState('ready');
+
+      // Auto search YouTube for this song in sidebar
+      const ytQuery = `${song.title_en} ${song.artist_display || ''}`.trim();
+      triggerYouTubeSidebarSearch(ytQuery);
+
       showToast(`Loaded "${song.title_en}" from GeetKosh catalog.`, 'info');
 
     } catch (err) {
@@ -494,6 +719,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     fYear.value = data.release_year || new Date().getFullYear();
     fYoutubeId.value = data.youtube_video_id || '';
 
+    // Status Badge in Sidebar
+    if (data.youtube_video_id) {
+      ytMatchStatusBadge.textContent = 'Linked';
+      ytMatchStatusBadge.className = 'badge-status-linked';
+    } else {
+      ytMatchStatusBadge.textContent = 'Unlinked';
+      ytMatchStatusBadge.className = 'badge-status-unlinked';
+    }
+
     // Subtitle Tracks Setup (YouTube)
     const tracks = data.caption_tracks || [];
     if (tracks.length > 0) {
@@ -513,13 +747,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Lyrics Setup (CC vs Plain Chords/Lyrics)
     renderLyricsPreview(data.lyrics || data.lyrics_lines || []);
-    if (data.lyrics_raw) {
+    if (data.sheet_text) {
+      fLyricsRaw.value = data.sheet_text;
+    } else if (data.lyrics_raw) {
       fLyricsRaw.value = data.lyrics_raw;
     } else if (Array.isArray(data.lyrics_lines)) {
-      fLyricsRaw.value = data.lyrics_lines.join('\n');
+      const sheetLines = data.lyrics_lines.map(l => (l.chords ? `${l.chords}\n${l.text_en || l.text_roman || l.text_np}` : (l.text_en || l.text_roman || l.text_np))).filter(Boolean);
+      fLyricsRaw.value = sheetLines.join('\n\n');
     }
 
     setViewState('ready');
+
+    // Automatically trigger zero-quota YouTube search in sidebar!
+    const searchTarget = `${data.title_en} ${data.artist_name || ''}`.trim();
+    if (searchTarget) {
+      triggerYouTubeSidebarSearch(searchTarget);
+    }
   }
 
   // ========================================================
@@ -553,6 +796,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     fYear.value = song.release_year || new Date().getFullYear();
     fYoutubeId.value = song.youtube_video_id || '';
 
+    if (song.youtube_video_id) {
+      ytMatchStatusBadge.textContent = 'Linked';
+      ytMatchStatusBadge.className = 'badge-status-linked';
+    } else {
+      ytMatchStatusBadge.textContent = 'Unlinked';
+      ytMatchStatusBadge.className = 'badge-status-unlinked';
+    }
+
     subTrackContainer.classList.add('hidden');
 
     const lines = song.lyric_lines || [];
@@ -580,7 +831,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     lyricsList.innerHTML = '';
     if (count > 0) {
-      lines.slice(0, 25).forEach((line, idx) => {
+      lines.slice(0, 30).forEach((line, idx) => {
         const row = document.createElement('div');
         row.className = 'line-row';
 
@@ -606,14 +857,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         lyricsList.appendChild(row);
       });
 
-      if (count > 25) {
+      if (count > 30) {
         const more = document.createElement('div');
         more.className = 'line-row';
-        more.innerHTML = `<span class="line-text" style="color: #71717A;">... and ${count - 25} more lines</span>`;
+        more.innerHTML = `<span class="line-text" style="color: #71717A;">... and ${count - 30} more lines</span>`;
         lyricsList.appendChild(more);
       }
     } else {
-      lyricsList.innerHTML = '<div class="line-row" style="background: rgba(200, 30, 30, 0.08); border-radius: 6px; padding: 6px 8px;"><span class="line-text" style="color: #E4E4E7; font-size: 11px;">⚠️ No lyrics lines parsed yet. You can paste plain lyrics in the "Plain Text Editor" tab.</span></div>';
+      lyricsList.innerHTML = '<div class="line-row" style="background: rgba(200, 30, 30, 0.08); border-radius: 6px; padding: 6px 8px;"><span class="line-text" style="color: #E4E4E7; font-size: 11px;">⚠️ No lyrics lines parsed yet. You can paste chord sheets in the editor tab.</span></div>';
     }
   }
 
@@ -636,7 +887,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========================================================
 
   btnMatchCatalog.addEventListener('click', () => {
-    // Focus search input with current title pre-filled to pick target song
     const currentTitle = fTitleEn.value || '';
     searchInput.value = currentTitle;
     searchInput.focus();
