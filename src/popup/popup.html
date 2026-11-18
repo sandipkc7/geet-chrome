@@ -284,39 +284,74 @@
                 </div>
               </div>
 
-              <!-- Lyrics Accordion (CC Subtitles or Chords/Plain Lyrics) -->
-              <details class="lyrics-accordion" open>
-                <summary>
-                  <div class="summary-title-wrap">
-                    <span id="accordion-summary-text">Lyrics Lines (0 lines)</span>
-                    <span id="sub-source-pill" class="pill-verified hidden">✓ Source</span>
+              <!-- Tabbed Lyrics & Chords Hub -->
+              <div class="lyrics-hub-card">
+                
+                <div class="lyrics-hub-header">
+                  <div class="hub-title-wrap">
+                    <span class="hub-icon">🎵</span>
+                    <h4>Lyrics & Chords Hub</h4>
+                    <span id="tab-lyrics-count-badge" class="badge-count-pill">0 lines</span>
                   </div>
-                  <span class="chevron">▼</span>
-                </summary>
-                <div class="lyrics-preview-body">
                   <!-- Subtitle Track Selector (if YouTube CC) -->
-                  <div id="sub-track-container" class="sub-track-row hidden">
+                  <div id="sub-track-container" class="sub-track-inline hidden">
                     <label for="f-sub-track">CC Track:</label>
                     <select id="f-sub-track"></select>
                   </div>
-
-                  <!-- Lyrics Mode Tabs: Line Preview vs Raw Text Editor -->
-                  <div class="lyrics-mode-bar">
-                    <button type="button" id="btn-mode-lines" class="mode-btn active">Lines & Chords Preview</button>
-                    <button type="button" id="btn-mode-raw" class="mode-btn">Chord Sheet / Text Editor</button>
-                  </div>
-
-                  <!-- Lines List View -->
-                  <div id="lyrics-lines-list" class="lines-list">
-                    <!-- Line previews injected here -->
-                  </div>
-
-                  <!-- Raw Text View (Hidden by default) -->
-                  <div id="lyrics-raw-container" class="lyrics-raw-container hidden">
-                    <textarea id="f-lyrics-raw" rows="8" placeholder="Paste or edit chord sheet here (chords on top, lyrics underneath)..."></textarea>
-                  </div>
                 </div>
-              </details>
+
+                <!-- Tab Navigation Bar -->
+                <div class="lyrics-tab-bar">
+                  <button type="button" id="tab-btn-sheet" class="tab-nav-btn active" data-tab="pane-sheet">
+                    📝 Chord Sheet Editor
+                  </button>
+                  <button type="button" id="tab-btn-lines" class="tab-nav-btn" data-tab="pane-lines">
+                    🎸 Line-by-Line Editor
+                  </button>
+                  <button type="button" id="tab-btn-preview" class="tab-nav-btn" data-tab="pane-preview">
+                    👁️ Synced Preview
+                  </button>
+                </div>
+
+                <!-- Tab Content Area -->
+                <div class="lyrics-tab-content">
+                  
+                  <!-- Tab 1: Chord Sheet Textarea Editor -->
+                  <div id="pane-sheet" class="lyrics-tab-pane active">
+                    <div class="sheet-toolbar">
+                      <span class="sheet-hint">💡 Edit chords & lyrics directly. Chords on top, lyrics underneath.</span>
+                      <button type="button" id="btn-reparse-sheet" class="btn-tiny-action" title="Re-parse sheet into lines">🪄 Re-parse Lines</button>
+                    </div>
+                    <textarea id="f-lyrics-raw" rows="9" placeholder="Paste or edit chord sheet here (chords on top, lyrics underneath)..."></textarea>
+                  </div>
+
+                  <!-- Tab 2: Line-by-Line Interactive Editor -->
+                  <div id="pane-lines" class="lyrics-tab-pane hidden">
+                    <div class="lines-editor-header">
+                      <span style="width: 22px;">#</span>
+                      <span style="width: 85px;">Chords</span>
+                      <span style="flex: 1;">Lyric Line</span>
+                      <span style="width: 24px;">✕</span>
+                    </div>
+                    <div id="editable-lines-container" class="editable-lines-list">
+                      <!-- Dynamically injected editable line rows -->
+                    </div>
+                    <div class="lines-actions-row">
+                      <button type="button" id="btn-add-line" class="btn-tiny-action">+ Add Line</button>
+                      <button type="button" id="btn-sync-to-sheet" class="btn-tiny-action btn-ghost" title="Re-generate chord sheet from lines">↺ Sync to Sheet</button>
+                    </div>
+                  </div>
+
+                  <!-- Tab 3: Synced Preview -->
+                  <div id="pane-preview" class="lyrics-tab-pane hidden">
+                    <div id="lyrics-lines-list" class="lines-list">
+                      <!-- Rendered read-only preview cards -->
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
 
               <!-- Publish / Update Action Bar -->
               <div class="form-actions">

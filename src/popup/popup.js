@@ -90,16 +90,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   const ytSidebarEmpty = document.getElementById('yt-sidebar-empty');
   const ytSidebarResults = document.getElementById('yt-sidebar-results');
 
-  // Lyrics Section
-  const lyricsSummaryText = document.getElementById('accordion-summary-text');
-  const subSourcePill = document.getElementById('sub-source-pill');
+  // Lyrics Tabbed Hub Elements
+  const tabLyricsCountBadge = document.getElementById('tab-lyrics-count-badge');
   const subTrackContainer = document.getElementById('sub-track-container');
   const fSubTrack = document.getElementById('f-sub-track');
-  const btnModeLines = document.getElementById('btn-mode-lines');
-  const btnModeRaw = document.getElementById('btn-mode-raw');
-  const lyricsList = document.getElementById('lyrics-lines-list');
-  const lyricsRawContainer = document.getElementById('lyrics-raw-container');
+  const tabBtnSheet = document.getElementById('tab-btn-sheet');
+  const tabBtnLines = document.getElementById('tab-btn-lines');
+  const tabBtnPreview = document.getElementById('tab-btn-preview');
+  const paneSheet = document.getElementById('pane-sheet');
+  const paneLines = document.getElementById('pane-lines');
+  const panePreview = document.getElementById('pane-preview');
   const fLyricsRaw = document.getElementById('f-lyrics-raw');
+  const editableLinesContainer = document.getElementById('editable-lines-container');
+  const lyricsList = document.getElementById('lyrics-lines-list');
+  const btnReParseSheet = document.getElementById('btn-reparse-sheet');
+  const btnAddLine = document.getElementById('btn-add-line');
+  const btnSyncToSheet = document.getElementById('btn-sync-to-sheet');
 
   // Success Screen Links
   const successTitle = document.getElementById('success-title');
@@ -111,6 +117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // App State Variables
   let currentSongData = null;
+  let currentLyricsLines = []; // Reactive store of parsed/editable lyrics lines
   let targetCatalogSong = null; // Set when editing or merging into an existing catalog song
   let searchDebounceTimer = null;
   let pendingSelectedVideo = null; // Staged video in the sidebar before confirmation
@@ -811,16 +818,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       subTrackContainer.classList.add('hidden');
     }
 
-    // Lyrics Setup (CC vs Plain Chords/Lyrics)
-    renderLyricsPreview(data.lyrics || data.lyrics_lines || []);
+    // Setup Lyrics in Tabbed Hub
+    const lines = data.lyrics_lines || data.lyrics || [];
+    currentLyricsLines = Array.isArray(lines) ? [...lines] : [];
+
     if (data.sheet_text) {
       fLyricsRaw.value = data.sheet_text;
     } else if (data.lyrics_raw) {
       fLyricsRaw.value = data.lyrics_raw;
-    } else if (Array.isArray(data.lyrics_lines)) {
-      const sheetLines = data.lyrics_lines.map(l => (l.chords ? `${l.chords}\n${l.text_en || l.text_roman || l.text_np}` : (l.text_en || l.text_roman || l.text_np))).filter(Boolean);
-      fLyricsRaw.value = sheetLines.join('\n\n');
+    } else {
+      fLyricsRaw.value = generateSheetFromLines(currentLyricsLines);
     }
+
+    renderEditableLines(currentLyricsLines);
+    renderLyricsPreview(currentLyricsLines);
+    updateLyricsCount(currentLyricsLines.length);
 
     setViewState('ready');
 
@@ -873,9 +885,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     subTrackContainer.classList.add('hidden');
 
     const lines = song.lyric_lines || [];
-    renderLyricsPreview(lines);
-    const sheetLines = lines.map(l => (l.chords ? `${l.chords}\n${l.text_roman || l.text_np}` : (l.text_roman || l.text_np))).filter(Boolean);
-    fLyricsRaw.value = sheetLines.join('\n\n');
+    currentLyricsLines = Array.isArray(lines) ? [...lines] : [];
+    fLyricsRaw.value = generateSheetFromLines(currentLyricsLines);
+    renderEditableLines(currentLyricsLines);
+    renderLyricsPreview(currentLyricsLines);
+    updateLyricsCount(currentLyricsLines.length);
   }
 
   // Auto-capitalize first letter of each word on blur for manual form fields
@@ -890,33 +904,147 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ========================================================
-  // RENDER LYRICS PREVIEW & EDIT MODES
+  // TABBED LYRICS & CHORDS HUB CONTROLLER
   // ========================================================
 
-  function renderLyricsPreview(lines) {
-    const count = (lines && lines.length) || 0;
-    lyricsSummaryText.textContent = `Lyrics Lines (${count} lines)`;
-    prevCaptionsBadge.textContent = count > 0 ? `✓ ${count} lyrics lines` : 'No lyrics saved';
-    prevCaptionsBadge.style.color = count > 0 ? '#34D399' : '#A1A1AA';
+  /**
+   * Switch between Sheet Editor, Line-by-Line Editor, and Synced Preview
+   */
+  function switchLyricsTab(targetPaneId) {
+    [tabBtnSheet, tabBtnLines, tabBtnPreview].forEach(btn => {
+      if (!btn) return;
+      if (btn.dataset.tab === targetPaneId) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
 
-    if (count > 0 && subSourcePill) {
-      subSourcePill.classList.remove('hidden');
-      subSourcePill.textContent = '✓ Lyrics Loaded';
-    } else if (subSourcePill) {
-      subSourcePill.classList.add('hidden');
+    [paneSheet, paneLines, panePreview].forEach(pane => {
+      if (!pane) return;
+      if (pane.id === targetPaneId) {
+        pane.classList.remove('hidden');
+        pane.classList.add('active');
+      } else {
+        pane.classList.add('hidden');
+        pane.classList.remove('active');
+      }
+    });
+  }
+
+  if (tabBtnSheet) tabBtnSheet.addEventListener('click', () => switchLyricsTab('pane-sheet'));
+  if (tabBtnLines) tabBtnLines.addEventListener('click', () => switchLyricsTab('pane-lines'));
+  if (tabBtnPreview) tabBtnPreview.addEventListener('click', () => switchLyricsTab('pane-preview'));
+
+  /**
+   * Updates line count badges across the UI
+   */
+  function updateLyricsCount(count) {
+    if (tabLyricsCountBadge) {
+      tabLyricsCountBadge.textContent = count > 0 ? `${count} lines` : '0 lines';
     }
+    if (prevCaptionsBadge) {
+      prevCaptionsBadge.textContent = count > 0 ? `✓ ${count} lyrics lines` : 'No lyrics saved';
+      prevCaptionsBadge.style.color = count > 0 ? '#34D399' : '#A1A1AA';
+    }
+  }
+
+  /**
+   * Formats structured lines into standard chord sheet text
+   */
+  function generateSheetFromLines(lines) {
+    if (!lines || !lines.length) return '';
+    return lines.map(l => {
+      const chords = (l.chords || l.chord || '').trim();
+      const text = (l.text_roman || l.text_en || l.text_np || (typeof l === 'string' ? l : '')).trim();
+      if (chords && text) {
+        return `${chords}\n${text}`;
+      } else if (chords) {
+        return chords;
+      } else {
+        return text;
+      }
+    }).filter(Boolean).join('\n\n');
+  }
+
+  /**
+   * Renders interactive, directly editable line rows (Tab 2)
+   */
+  function renderEditableLines(lines) {
+    if (!editableLinesContainer) return;
+    editableLinesContainer.innerHTML = '';
+    const list = lines || [];
+
+    if (list.length === 0) {
+      editableLinesContainer.innerHTML = `
+        <div style="padding: 14px; text-align: center; color: var(--text-muted); font-size: 11px;">
+          No lines yet. Click "+ Add Line" or paste chord sheet in the Sheet Editor tab.
+        </div>
+      `;
+      return;
+    }
+
+    list.forEach((line, idx) => {
+      const row = document.createElement('div');
+      row.className = 'editable-line-row';
+      row.dataset.index = idx;
+
+      const chordsVal = line.chords || line.chord || '';
+      const textVal = line.text_roman || line.text_en || line.text_np || (typeof line === 'string' ? line : '');
+
+      row.innerHTML = `
+        <span class="editable-line-idx">${idx + 1}</span>
+        <input type="text" class="input-line-chords font-mono" placeholder="Chords" value="${escapeHtml(chordsVal)}" title="Guitar chords for this line (e.g. F Gm)" />
+        <input type="text" class="input-line-text" placeholder="Lyric line..." value="${escapeHtml(textVal)}" />
+        <button type="button" class="btn-remove-line" title="Delete this line">&times;</button>
+      `;
+
+      const chordInp = row.querySelector('.input-line-chords');
+      const textInp = row.querySelector('.input-line-text');
+      const btnRemove = row.querySelector('.btn-remove-line');
+
+      const onLineChange = () => {
+        line.chords = chordInp.value.trim();
+        line.text_roman = textInp.value;
+        line.text_np = textInp.value;
+        line.text_en = textInp.value;
+        // Sync to sheet and preview
+        fLyricsRaw.value = generateSheetFromLines(currentLyricsLines);
+        renderLyricsPreview(currentLyricsLines);
+      };
+
+      chordInp.addEventListener('input', onLineChange);
+      textInp.addEventListener('input', onLineChange);
+
+      btnRemove.addEventListener('click', () => {
+        currentLyricsLines.splice(idx, 1);
+        renderEditableLines(currentLyricsLines);
+        renderLyricsPreview(currentLyricsLines);
+        fLyricsRaw.value = generateSheetFromLines(currentLyricsLines);
+        updateLyricsCount(currentLyricsLines.length);
+      });
+
+      editableLinesContainer.appendChild(row);
+    });
+  }
+
+  /**
+   * Renders read-only preview cards with chord badges (Tab 3)
+   */
+  function renderLyricsPreview(lines) {
+    if (!lyricsList) return;
+    const count = (lines && lines.length) || 0;
+    updateLyricsCount(count);
 
     lyricsList.innerHTML = '';
     if (count > 0) {
-      lines.slice(0, 30).forEach((line, idx) => {
+      lines.forEach((line, idx) => {
         const row = document.createElement('div');
         row.className = 'line-row';
 
         let timeStr = `${idx + 1}`;
-        if (typeof line.time_ms === 'number') {
+        if (typeof line.time_ms === 'number' && line.time_ms > 0) {
           timeStr = formatMs(line.time_ms);
-        } else if (typeof line.start_time === 'number') {
-          timeStr = `${Math.floor(line.start_time / 60)}:${Math.floor(line.start_time % 60).toString().padStart(2, '0')}`;
         }
 
         const textStr = line.text_np || line.text_roman || line.text_en || (typeof line === 'string' ? line : '');
@@ -933,31 +1061,104 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
         lyricsList.appendChild(row);
       });
-
-      if (count > 30) {
-        const more = document.createElement('div');
-        more.className = 'line-row';
-        more.innerHTML = `<span class="line-text" style="color: #71717A;">... and ${count - 30} more lines</span>`;
-        lyricsList.appendChild(more);
-      }
     } else {
-      lyricsList.innerHTML = '<div class="line-row" style="background: rgba(200, 30, 30, 0.08); border-radius: 6px; padding: 6px 8px;"><span class="line-text" style="color: #E4E4E7; font-size: 11px;">⚠️ No lyrics lines parsed yet. You can paste chord sheets in the editor tab.</span></div>';
+      lyricsList.innerHTML = '<div class="line-row" style="background: rgba(200, 30, 30, 0.08); border-radius: 6px; padding: 6px 8px;"><span class="line-text" style="color: #E4E4E7; font-size: 11px;">⚠️ No lyrics lines parsed yet. Use the Chord Sheet Editor to paste or edit chords.</span></div>';
     }
   }
 
-  btnModeLines.addEventListener('click', () => {
-    btnModeLines.classList.add('active');
-    btnModeRaw.classList.remove('active');
-    lyricsList.classList.remove('hidden');
-    lyricsRawContainer.classList.add('hidden');
+  /**
+   * Re-parses sheet textarea into lines
+   */
+  function reparseSheetTextarea(showNotification = false) {
+    const raw = fLyricsRaw.value.trim();
+    if (!raw) {
+      currentLyricsLines = [];
+      renderEditableLines([]);
+      renderLyricsPreview([]);
+      updateLyricsCount(0);
+      if (showNotification) showToast('Sheet is empty.', 'info');
+      return;
+    }
+
+    if (typeof ChordParser !== 'undefined') {
+      const parsed = ChordParser.parseSheet(raw);
+      currentLyricsLines = parsed.lyrics_lines;
+      renderEditableLines(currentLyricsLines);
+      renderLyricsPreview(currentLyricsLines);
+      updateLyricsCount(currentLyricsLines.length);
+
+      if (!fChords.value.trim() && parsed.chords_progression) {
+        fChords.value = parsed.chords_progression;
+      }
+      if (showNotification) {
+        showToast(`✓ Sheet parsed into ${currentLyricsLines.length} lines with paired chords!`, 'info');
+      }
+    } else {
+      const splitLines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+      currentLyricsLines = splitLines.map((line, idx) => ({
+        time_ms: idx * 3000,
+        duration_ms: 3000,
+        text_np: line,
+        text_roman: line,
+        text_en: line
+      }));
+      renderEditableLines(currentLyricsLines);
+      renderLyricsPreview(currentLyricsLines);
+      updateLyricsCount(currentLyricsLines.length);
+    }
+  }
+
+  // Re-parse button in Sheet Toolbar
+  if (btnReParseSheet) {
+    btnReParseSheet.addEventListener('click', () => {
+      reparseSheetTextarea(true);
+    });
+  }
+
+  // Live input on textarea (debounced 350ms)
+  let sheetInputDebounce = null;
+  fLyricsRaw.addEventListener('input', () => {
+    clearTimeout(sheetInputDebounce);
+    sheetInputDebounce = setTimeout(() => {
+      reparseSheetTextarea(false);
+    }, 350);
   });
 
-  btnModeRaw.addEventListener('click', () => {
-    btnModeRaw.classList.add('active');
-    btnModeLines.classList.remove('active');
-    lyricsList.classList.add('hidden');
-    lyricsRawContainer.classList.remove('hidden');
-  });
+  // Add Line Button in Line Editor
+  if (btnAddLine) {
+    btnAddLine.addEventListener('click', () => {
+      const newLine = {
+        time_ms: currentLyricsLines.length * 3000,
+        duration_ms: 3000,
+        chords: '',
+        text_roman: '',
+        text_np: '',
+        text_en: ''
+      };
+      currentLyricsLines.push(newLine);
+      renderEditableLines(currentLyricsLines);
+      renderLyricsPreview(currentLyricsLines);
+      fLyricsRaw.value = generateSheetFromLines(currentLyricsLines);
+      updateLyricsCount(currentLyricsLines.length);
+
+      // Focus the newly added text input
+      const rows = editableLinesContainer.querySelectorAll('.editable-line-row');
+      const lastRow = rows[rows.length - 1];
+      if (lastRow) {
+        const txt = lastRow.querySelector('.input-line-text');
+        if (txt) txt.focus();
+      }
+    });
+  }
+
+  // Sync to Sheet button in Line Editor
+  if (btnSyncToSheet) {
+    btnSyncToSheet.addEventListener('click', () => {
+      fLyricsRaw.value = generateSheetFromLines(currentLyricsLines);
+      switchLyricsTab('pane-sheet');
+      showToast('✓ Synced lines into chord sheet!', 'info');
+    });
+  }
 
   // ========================================================
   // MERGE INTO EXISTING CATALOG SONG ACTION
@@ -988,10 +1189,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnPublish.disabled = true;
     btnPublish.innerHTML = '<div class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></div> Saving...';
 
-    // Parse lyrics lines: if raw textarea has content, parse chords and lyrics through ChordParser
-    let payloadLyrics = [];
+    // Parse lyrics lines: use currentLyricsLines or re-parse from fLyricsRaw
+    let payloadLyrics = currentLyricsLines;
     const rawVal = fLyricsRaw.value.trim();
-    if (rawVal) {
+    if ((!payloadLyrics || payloadLyrics.length === 0) && rawVal) {
       if (typeof ChordParser !== 'undefined') {
         const parsedSheet = ChordParser.parseSheet(rawVal);
         payloadLyrics = parsedSheet.lyrics_lines;
@@ -1007,10 +1208,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           text_en: line
         }));
       }
-    } else if (currentSongData && currentSongData.lyrics && currentSongData.lyrics.length > 0) {
+    } else if (currentSongData && currentSongData.lyrics && currentSongData.lyrics.length > 0 && (!payloadLyrics || !payloadLyrics.length)) {
       payloadLyrics = currentSongData.lyrics;
-    } else if (currentSongData && currentSongData.lyrics_lines && currentSongData.lyrics_lines.length > 0) {
-      payloadLyrics = currentSongData.lyrics_lines;
     }
 
     const payload = {

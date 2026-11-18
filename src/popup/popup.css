@@ -947,47 +947,292 @@ input:focus, select:focus {
   text-decoration: underline;
 }
 
-/* Lyrics Mode Bar */
-.lyrics-mode-bar {
-  display: flex;
-  gap: 6px;
+/* ======================================================== */
+/* Lyrics & Chords Tabbed Hub                               */
+/* ======================================================== */
+
+.lyrics-hub-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
   margin-bottom: 8px;
-  border-bottom: 1px solid #27272A;
-  padding-bottom: 6px;
 }
 
-.mode-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
+.lyrics-hub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.hub-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hub-icon {
+  font-size: 13px;
+}
+
+.hub-title-wrap h4 {
   font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 3px 6px;
-  border-radius: 4px;
-}
-
-.mode-btn.active {
-  background: #27272A;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
   color: #fff;
 }
 
-.lyrics-raw-container textarea {
+.badge-count-pill {
+  font-size: 9px;
+  font-weight: 700;
+  color: #34D399;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.sub-track-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sub-track-inline label {
+  font-size: 9.5px;
+  color: var(--text-muted);
+}
+
+.sub-track-inline select {
+  padding: 2px 6px;
+  font-size: 10px;
+  width: auto;
+}
+
+/* Tab Navigation Bar */
+.lyrics-tab-bar {
+  display: flex;
+  gap: 4px;
+  background: #111114;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid #27272A;
+  margin-bottom: 8px;
+}
+
+.tab-nav-btn {
+  flex: 1;
+  padding: 5px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.tab-nav-btn:hover {
+  color: #FAF7F2;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-nav-btn.active {
+  color: #fff;
+  background: #27272A;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* Tab Panes */
+.lyrics-tab-pane {
+  display: flex;
+  flex-direction: column;
+}
+
+.lyrics-tab-pane.hidden {
+  display: none !important;
+}
+
+/* Pane 1: Sheet Editor */
+.sheet-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.sheet-hint {
+  font-size: 9.5px;
+  color: var(--accent-brass);
+}
+
+.btn-tiny-action {
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  background: #27272A;
+  border: 1px solid #3F3F46;
+  border-radius: var(--radius-sm);
+  color: #FAF7F2;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-tiny-action:hover {
+  background: #3F3F46;
+  border-color: #52525B;
+  color: #fff;
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: #38BDF8;
+}
+
+.btn-ghost:hover {
+  background: rgba(56, 189, 248, 0.1);
+  color: #7DD3FC;
+}
+
+#f-lyrics-raw {
   width: 100%;
+  height: 180px;
   background: #141417;
   border: 1px solid #3F3F46;
   border-radius: var(--radius-sm);
-  color: var(--text-main);
-  font-family: inherit;
-  font-size: 12px;
-  line-height: 2.05;
+  color: #FAF7F2;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
   padding: 8px;
   outline: none;
   resize: vertical;
+  transition: border-color 0.15s;
 }
 
-.lyrics-raw-container textarea:focus {
+#f-lyrics-raw:focus {
   border-color: var(--primary-simrik);
+}
+
+/* Pane 2: Line-by-Line Interactive Editor */
+.lines-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 4px 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-muted);
+  border-bottom: 1px solid #27272A;
+  margin-bottom: 4px;
+}
+
+.editable-lines-list {
+  max-height: 190px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 4px;
+}
+
+.editable-line-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #18181C;
+  border: 1px solid #27272A;
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  transition: border-color 0.15s;
+}
+
+.editable-line-row:focus-within {
+  border-color: #52525B;
+  background: #202025;
+}
+
+.editable-line-idx {
+  width: 22px;
+  font-size: 9.5px;
+  font-family: monospace;
+  color: #71717A;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.input-line-chords {
+  width: 85px !important;
+  flex-shrink: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  color: #F87171 !important;
+  background: rgba(200, 30, 30, 0.12) !important;
+  border: 1px solid rgba(200, 30, 30, 0.3) !important;
+  padding: 3px 6px !important;
+  border-radius: 3px;
+}
+
+.input-line-chords:focus {
+  border-color: #EF4444 !important;
+  background: rgba(200, 30, 30, 0.25) !important;
+}
+
+.input-line-text {
+  flex: 1 !important;
+  font-size: 11px !important;
+  color: #FAF7F2 !important;
+  background: #27272A !important;
+  border: 1px solid #3F3F46 !important;
+  padding: 3px 6px !important;
+  border-radius: 3px;
+}
+
+.input-line-text:focus {
+  border-color: var(--primary-simrik) !important;
+}
+
+.btn-remove-line {
+  background: transparent;
+  border: none;
+  color: #71717A;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 2px;
+}
+
+.btn-remove-line:hover {
+  color: #EF4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.lines-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid #27272A;
+}
+
+/* Expanded mode overrides */
+body.expanded-mode #f-lyrics-raw {
+  height: 280px;
+}
+
+body.expanded-mode .editable-lines-list {
+  max-height: 320px;
 }
 
 /* Line Chords Badge in Extension Preview */
