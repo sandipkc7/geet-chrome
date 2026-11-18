@@ -843,10 +843,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (data.older_page_url) {
       labelPaginationRow.classList.remove('hidden');
-      btnOlderPosts.href = data.older_page_url;
+      btnOlderPosts.dataset.url = data.older_page_url;
     } else {
       labelPaginationRow.classList.add('hidden');
+      btnOlderPosts.dataset.url = '';
     }
+  }
+
+  if (btnOlderPosts) {
+    btnOlderPosts.addEventListener('click', async () => {
+      const url = btnOlderPosts.dataset.url;
+      if (!url) return;
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tabs && tabs[0]) {
+        await chrome.tabs.update(tabs[0].id, { url });
+        window.close();
+      }
+    });
   }
 
   // ========================================================

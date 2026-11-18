@@ -7,13 +7,30 @@
 (function () {
   'use strict';
 
-  function isLabelPage() {
+  function isPostPage() {
     const path = window.location.pathname;
-    return path.includes('/search/label/') || document.querySelectorAll('.post-title').length > 1;
+    // Blogger single post pattern is ALWAYS /YYYY/MM/post-title.html
+    if (/\/\d{4}\/\d{2}\/.*\.html/i.test(path)) {
+      return true;
+    }
+    // Also true if there is a .post-body and we are NOT on a /search/label/ page
+    if (!path.includes('/search/label/') && document.querySelector('.post-body, .entry-content')) {
+      return true;
+    }
+    return false;
   }
 
-  function isPostPage() {
-    return /\/\d{4}\/\d{2}\/.*\.html/.test(window.location.pathname) || !!document.querySelector('.post-body');
+  function isLabelPage() {
+    const path = window.location.pathname;
+    // Single post URLs with .html can NEVER be label archive pages
+    if (/\/\d{4}\/\d{2}\/.*\.html/i.test(path)) {
+      return false;
+    }
+    if (path.includes('/search/label/')) {
+      return true;
+    }
+    const posts = document.querySelectorAll('.blog-posts .post-outer, .blog-posts .post, #main .post');
+    return posts.length > 1;
   }
 
   /**
@@ -150,11 +167,11 @@
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'EXTRACT_SONG_DATA') {
       try {
-        if (isLabelPage()) {
-          const data = extractLabelPage();
-          sendResponse({ success: true, source: 'BLOGGER', data });
-        } else if (isPostPage()) {
+        if (isPostPage()) {
           const data = extractPostPage();
+          sendResponse({ success: true, source: 'BLOGGER', data });
+        } else if (isLabelPage()) {
+          const data = extractLabelPage();
           sendResponse({ success: true, source: 'BLOGGER', data });
         } else {
           sendResponse({ success: false, error: 'Not a recognized Blogger music page.' });
@@ -163,7 +180,7 @@
         sendResponse({ success: false, error: err.message });
       }
     }
-    return true; // Keep message channel open for async response
+    return false;
   });
 
 })();
