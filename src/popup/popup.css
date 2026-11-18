@@ -1375,9 +1375,10 @@ input:focus, select:focus {
 
 .sidebar-tab-bar {
   display: flex;
+  align-items: center;
   gap: 4px;
   background: #111114;
-  padding: 3px;
+  padding: 3px 5px;
   border-radius: var(--radius-sm);
   border: 1px solid #27272A;
   margin-bottom: 6px;

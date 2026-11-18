@@ -127,8 +127,8 @@
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      // Skip artist/song meta lines
-      if (/^Artist\s*:/i.test(line) || /^Song\s*:/i.test(line)) {
+      // Skip artist/song/header meta lines
+      if (/^Artist\s*:/i.test(line) || /^Song\s*:/i.test(line) || /^Nepali\s+Songs\s+(?:and|&)\s+chords\s*:/i.test(line) || /^Guitar\s+Chords\s*:/i.test(line)) {
         continue;
       }
 

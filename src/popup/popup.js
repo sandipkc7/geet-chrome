@@ -96,6 +96,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sidebarPaneYt = document.getElementById('sidebar-pane-yt');
   const sidebarPaneDetails = document.getElementById('sidebar-pane-details');
 
+  function updateYtMatchStatus(isLinked) {
+    if (!ytMatchStatusBadge) return;
+    if (isLinked) {
+      ytMatchStatusBadge.textContent = 'Linked';
+      ytMatchStatusBadge.className = 'badge-status-linked';
+    } else {
+      ytMatchStatusBadge.textContent = 'Unlinked';
+      ytMatchStatusBadge.className = 'badge-status-unlinked';
+    }
+  }
+
   // Lyrics Tabbed Hub Elements
   const tabLyricsCountBadge = document.getElementById('tab-lyrics-count-badge');
   const subTrackContainer = document.getElementById('sub-track-container');
@@ -415,8 +426,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Update status badge
-    ytMatchStatusBadge.textContent = 'Linked';
-    ytMatchStatusBadge.className = 'badge-status-linked';
+    updateYtMatchStatus(true);
 
     showToast(`✓ Linked YouTube Video: "${pendingSelectedVideo.title}"`, 'success');
   });
@@ -730,8 +740,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function sendExtractMessage(tabId, sourceKind) {
+    let responded = false;
+    const timeoutTimer = setTimeout(() => {
+      if (!responded) {
+        responded = true;
+        setViewState('not-supported');
+        showToast('Communication timed out. Please refresh the music webpage and reopen the extension.', 'info');
+      }
+    }, 6000);
+
     try {
       chrome.tabs.sendMessage(tabId, { action: 'EXTRACT_SONG_DATA' }, (response) => {
+        if (responded) return;
+        responded = true;
+        clearTimeout(timeoutTimer);
+
         if (chrome.runtime.lastError || !response || !response.success || !response.data) {
           setViewState('not-supported');
           showToast('Could not extract music data from page. Please refresh the tab.', 'info');
@@ -739,15 +762,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const data = response.data;
-        if (data.type === 'BLOGGER_LABEL' || data.type === 'NSC_ARTIST') {
-          renderLabelView(data);
-        } else {
-          populateFormFromScraped(data, sourceKind);
+        try {
+          if (data.type === 'BLOGGER_LABEL' || data.type === 'NSC_ARTIST') {
+            renderLabelView(data);
+          } else {
+            populateFormFromScraped(data, sourceKind);
+          }
+        } catch (renderErr) {
+          console.error('Error rendering scraped data:', renderErr);
+          setViewState('not-supported');
+          showToast('Error rendering scraped data: ' + renderErr.message, 'error');
         }
       });
     } catch (err) {
-      setViewState('not-supported');
-      showToast('Error communicating with active page script.', 'error');
+      if (!responded) {
+        responded = true;
+        clearTimeout(timeoutTimer);
+        setViewState('not-supported');
+        showToast('Error communicating with active page script.', 'error');
+      }
     }
   }
 
@@ -839,13 +872,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     fYoutubeId.value = data.youtube_video_id || '';
 
     // Status Badge in Sidebar
-    if (data.youtube_video_id) {
-      ytMatchStatusBadge.textContent = 'Linked';
-      ytMatchStatusBadge.className = 'badge-status-linked';
-    } else {
-      ytMatchStatusBadge.textContent = 'Unlinked';
-      ytMatchStatusBadge.className = 'badge-status-unlinked';
-    }
+    updateYtMatchStatus(Boolean(data.youtube_video_id));
 
     // Subtitle Tracks Setup (YouTube)
     const tracks = data.caption_tracks || [];
@@ -920,13 +947,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     fYear.value = song.release_year || new Date().getFullYear();
     fYoutubeId.value = song.youtube_video_id || '';
 
-    if (song.youtube_video_id) {
-      ytMatchStatusBadge.textContent = 'Linked';
-      ytMatchStatusBadge.className = 'badge-status-linked';
-    } else {
-      ytMatchStatusBadge.textContent = 'Unlinked';
-      ytMatchStatusBadge.className = 'badge-status-unlinked';
-    }
+    updateYtMatchStatus(Boolean(song.youtube_video_id));
 
     subTrackContainer.classList.add('hidden');
 

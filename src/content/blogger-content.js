@@ -81,7 +81,8 @@
   function extractPostPage() {
     // 1. Post Title
     const titleEl = document.querySelector('.post-title, h2.entry-title, h1.entry-title, h2.post-title');
-    let rawTitle = titleEl ? titleEl.textContent.trim() : document.title.replace(/^Nepali Songs And Chords:\s*/i, '').trim();
+    let rawTitle = titleEl ? titleEl.textContent.trim() : document.title;
+    rawTitle = rawTitle.replace(/^Nepali\s+Songs\s+(?:and|&)\s+chords\s*:\s*/i, '').trim();
     let cleanTitle = (typeof toTitleCase === 'function')
       ? toTitleCase(rawTitle)
       : rawTitle;
@@ -137,6 +138,7 @@
       scale: parsed.scale,
       lyrics_lines: parsed.lyrics_lines,
       lyrics_raw: parsed.raw_text,
+      sheet_text: parsed.sheet_text,
       youtube_video_id: null,
       thumbnail_url: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80',
       duration_seconds: 0,
