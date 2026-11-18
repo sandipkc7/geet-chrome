@@ -557,8 +557,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const lines = song.lyric_lines || [];
     renderLyricsPreview(lines);
-    const plainLines = lines.map(l => l.text_np || l.text_roman).filter(Boolean);
-    fLyricsRaw.value = plainLines.join('\n');
+    const sheetLines = lines.map(l => (l.chords ? `${l.chords}\n${l.text_roman || l.text_np}` : (l.text_roman || l.text_np))).filter(Boolean);
+    fLyricsRaw.value = sheetLines.join('\n\n');
   }
 
   // ========================================================
@@ -592,9 +592,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const textStr = line.text_np || line.text_roman || line.text_en || (typeof line === 'string' ? line : '');
+        const chordHtml = line.chords
+          ? `<div class="line-chord-tag">🎸 ${escapeHtml(line.chords)}</div>`
+          : '';
+
         row.innerHTML = `
           <span class="line-time">${timeStr}</span>
-          <span class="line-text">${escapeHtml(textStr)}</span>
+          <div class="line-content">
+            ${chordHtml}
+            <span class="line-text">${escapeHtml(textStr)}</span>
+          </div>
         `;
         lyricsList.appendChild(row);
       });
@@ -654,19 +661,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnPublish.disabled = true;
     btnPublish.innerHTML = '<div class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></div> Saving...';
 
-    // Parse lyrics lines: priority to raw editor if modified, else structured
+    // Parse lyrics lines: if raw textarea has content, parse chords and lyrics through ChordParser
     let payloadLyrics = [];
     const rawVal = fLyricsRaw.value.trim();
     if (rawVal) {
-      const splitLines = rawVal.split('\n').map(l => l.trim()).filter(Boolean);
-      payloadLyrics = splitLines.map((line, idx) => ({
-        time_ms: (idx * 3000),
-        duration_ms: 3000,
-        text_np: line,
-        text_en: line
-      }));
+      if (typeof ChordParser !== 'undefined') {
+        const parsedSheet = ChordParser.parseSheet(rawVal);
+        payloadLyrics = parsedSheet.lyrics_lines;
+        if (!fChords.value.trim() && parsedSheet.chords_progression) {
+          fChords.value = parsedSheet.chords_progression;
+        }
+      } else {
+        const splitLines = rawVal.split('\n').map(l => l.trim()).filter(Boolean);
+        payloadLyrics = splitLines.map((line, idx) => ({
+          time_ms: (idx * 3000),
+          duration_ms: 3000,
+          text_np: line,
+          text_en: line
+        }));
+      }
     } else if (currentSongData && currentSongData.lyrics && currentSongData.lyrics.length > 0) {
       payloadLyrics = currentSongData.lyrics;
+    } else if (currentSongData && currentSongData.lyrics_lines && currentSongData.lyrics_lines.length > 0) {
+      payloadLyrics = currentSongData.lyrics_lines;
     }
 
     const payload = {

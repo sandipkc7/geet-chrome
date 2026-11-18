@@ -1,7 +1,7 @@
 /**
  * GeetKosh (गीतकोश) — Smart Chord & Lyric Parser Utility
- * Intelligently identifies guitar chord lines, extracts chord progressions,
- * cleans Romanized lyric lines, and estimates root musical keys.
+ * Intelligently identifies guitar chord lines, pairs chords directly with lyric lines,
+ * extracts chord progressions, and estimates root musical keys.
  */
 
 (function (root, factory) {
@@ -22,7 +22,6 @@
    */
   function isChordToken(token) {
     if (!token) return false;
-    // Strip trailing/leading punctuation or dots
     const clean = token.replace(/^[.\s\-_()\[\]]+|[.\s\-_()\[\]]+$/g, '');
     if (!clean) return false;
     return CHORD_REGEX.test(clean);
@@ -53,6 +52,18 @@
   }
 
   /**
+   * Cleans a chord line: strips tab dots (.....) and normalizes spacing
+   */
+  function cleanChordLine(line) {
+    if (!line) return '';
+    return line
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\.{2,}/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
    * Extracts all unique chords in order of first appearance from text
    */
   function extractChordProgression(text) {
@@ -63,7 +74,6 @@
 
     for (const m of matches) {
       const upper = m.toUpperCase();
-      // Normalize e.g. "GM" -> "Gm", "BB" -> "Bb"
       const normalized = m.charAt(0).toUpperCase() + m.slice(1);
       if (!seen.has(upper) && isChordToken(normalized)) {
         seen.add(upper);
@@ -86,39 +96,7 @@
   }
 
   /**
-   * Cleans a lyric line: strips embedded chord annotations, dots, trailing symbols
-   */
-  function cleanLyricLine(line) {
-    if (!line) return '';
-    let cleaned = line
-      .replace(/&nbsp;/g, ' ')
-      .replace(/\.{2,}/g, ' ')       // Remove repeated dots e.g. F......Gm
-      .replace(/\s+/g, ' ')           // Collapse multiple whitespace
-      .trim();
-
-    // Remove guitar tab instruction lines (e.g. "Play chord same as above", "Strumming pattern", etc.)
-    const lower = cleaned.toLowerCase();
-    if (
-      lower.startsWith('play chord') ||
-      lower.startsWith('strumming') ||
-      lower.startsWith('tuning:') ||
-      lower.startsWith('capo:') ||
-      lower.startsWith('verse') ||
-      lower.startsWith('chorus') ||
-      lower.startsWith('intro') ||
-      lower.startsWith('outro')
-    ) {
-      // Keep section headers if clean e.g. [Chorus], but remove instructions
-      if (lower.startsWith('play chord') || lower.startsWith('strumming')) {
-        return '';
-      }
-    }
-
-    return cleaned;
-  }
-
-  /**
-   * Full parse of raw text / HTML into structured chords and clean lyric lines
+   * Full parse of raw text / HTML into structured chords and lyric lines with chords paired
    */
   function parseSheet(rawContent) {
     if (!rawContent) {
@@ -127,6 +105,7 @@
         chords_progression: '',
         scale: 'C Major',
         lyrics_lines: [],
+        sheet_text: '',
         raw_text: ''
       };
     }
@@ -136,44 +115,74 @@
       .replace(/<br\s*[\/]?>/gi, '\n')
       .replace(/<\/p>/gi, '\n')
       .replace(/<\/div>/gi, '\n')
-      .replace(/<[^>]+>/g, '') // Strip any remaining HTML tags
+      .replace(/<[^>]+>/g, '') // Strip HTML tags
       .split('\n')
       .map(l => l.trim())
       .filter(l => l.length > 0);
 
-    const lyricLines = [];
+    const structuredLines = [];
     const allChords = [];
+    let pendingChord = '';
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      // Check if line contains "Artist :" or similar meta header
+      // Skip artist/song meta lines
       if (/^Artist\s*:/i.test(line) || /^Song\s*:/i.test(line)) {
         continue;
       }
 
       if (isChordLine(line)) {
-        const found = extractChordProgression(line);
-        allChords.push(...found);
+        const cleanChord = cleanChordLine(line);
+        pendingChord = cleanChord;
+        // Extract unique chords
+        const tokens = cleanChord.split(/\s+/).filter(isChordToken);
+        allChords.push(...tokens);
       } else {
-        // Line is lyrical text
-        const cleaned = cleanLyricLine(line);
-        if (cleaned.length > 1) {
-          // If the line has some chords embedded inside words (e.g. "F Malai bhanna aaundaina"),
-          // separate the leading/trailing chord tokens from the lyrics
-          const tokens = cleaned.split(' ');
-          const nonChordTokens = [];
-          for (const token of tokens) {
-            if (isChordToken(token)) {
-              allChords.push(token);
-            } else {
-              nonChordTokens.push(token);
-            }
+        // It's a lyric line
+        let text = line
+          .replace(/&nbsp;/g, ' ')
+          .replace(/\.{2,}/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        // Filter out instructions
+        const lower = text.toLowerCase();
+        if (lower.startsWith('play chord') || lower.startsWith('strumming')) {
+          continue;
+        }
+
+        // Check if line has leading/inline chords e.g. "F Malai bhanna aaundaina"
+        const words = text.split(' ');
+        const leadingChords = [];
+        const lyricWords = [];
+        let inLeading = true;
+
+        for (const w of words) {
+          if (inLeading && isChordToken(w)) {
+            leadingChords.push(w);
+            allChords.push(w);
+          } else {
+            inLeading = false;
+            lyricWords.push(w);
           }
-          const pureLyrics = nonChordTokens.join(' ').trim();
-          if (pureLyrics.length > 1) {
-            lyricLines.push(pureLyrics);
-          }
+        }
+
+        if (leadingChords.length > 0 && !pendingChord) {
+          pendingChord = leadingChords.join(' ');
+        }
+        const cleanText = lyricWords.join(' ').trim() || text;
+
+        if (cleanText.length > 1) {
+          structuredLines.push({
+            line_order: structuredLines.length + 1,
+            time_ms: structuredLines.length * 3000,
+            duration_ms: 3000,
+            text_en: cleanText,
+            text_np: cleanText,
+            chords: pendingChord || ''
+          });
+          pendingChord = ''; // Consumed
         }
       }
     }
@@ -190,21 +199,31 @@
       }
     }
 
+    // Generate formatted chord sheet text (chords above each line)
+    const sheetText = structuredLines
+      .map(l => (l.chords ? `${l.chords}\n${l.text_en}` : l.text_en))
+      .join('\n\n');
+
+    // Generate clean lyrics text without chords
+    const plainText = structuredLines.map(l => l.text_en).join('\n');
+
     return {
       chords: uniqueChords,
       chords_progression: uniqueChords.join(', '),
       scale: estimateScale(uniqueChords),
-      lyrics_lines: lyricLines,
-      raw_text: lyricLines.join('\n')
+      lyrics_lines: structuredLines,
+      sheet_text: sheetText,
+      raw_text: sheetText, // Defaults to sheet with chords
+      plain_text: plainText
     };
   }
 
   return {
     isChordToken,
     isChordLine,
+    cleanChordLine,
     extractChordProgression,
     estimateScale,
-    cleanLyricLine,
     parseSheet
   };
 }));
