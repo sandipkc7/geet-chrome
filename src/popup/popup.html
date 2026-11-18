@@ -182,12 +182,20 @@
           </div>
 
           <!-- Synced Lyrics Accordion -->
-          <details class="lyrics-accordion">
+          <details class="lyrics-accordion" open>
             <summary>
-              <span id="accordion-summary-text">Synchronized Lyrics (0 lines)</span>
+              <div class="summary-title-wrap">
+                <span id="accordion-summary-text">YouTube Subtitles (0 lines)</span>
+                <span id="sub-source-pill" class="pill-verified hidden">✓ YouTube CC</span>
+              </div>
               <span class="chevron">▼</span>
             </summary>
             <div class="lyrics-preview-body">
+              <!-- Subtitle Track Selector -->
+              <div id="sub-track-container" class="sub-track-row hidden">
+                <label for="f-sub-track">CC Track:</label>
+                <select id="f-sub-track"></select>
+              </div>
               <div id="lyrics-lines-list" class="lines-list">
                 <!-- Line previews injected here -->
               </div>

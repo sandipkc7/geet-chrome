@@ -1,36 +1,64 @@
 /**
  * GeetKosh Transcript & Synchronized Lyrics Parser
- * Handles YouTube timed text formats (JSON3 and XML) and converts to GeetKosh lyric lines.
+ * Handles YouTube timed text formats (JSON3, XML, VTT) and converts to GeetKosh lyric lines.
  */
 
 class TranscriptParser {
   /**
+   * Decodes HTML character entities often found in subtitle files
+   */
+  static decodeHtml(html) {
+    if (!html) return '';
+    return html
+      .replace(/&amp;#39;/g, "'")
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+  }
+
+  /**
    * Fetches and parses a YouTube timed text track URL
    * @param {string} baseUrl - Base URL from captionTracks
+   * @param {string} [translationLang] - Optional translation language code (e.g. 'en' or 'ne')
    * @returns {Promise<Array<{line_order: number, time_ms: number, duration_ms: number, text_np: string, text_en: string}>>}
    */
-  static async fetchAndParse(baseUrl) {
+  static async fetchAndParse(baseUrl, translationLang = '') {
     if (!baseUrl) return [];
 
     try {
-      // Prefer JSON3 format for cleaner structure
-      const fetchUrl = baseUrl.includes('fmt=json3') ? baseUrl : `${baseUrl}&fmt=json3`;
-      const res = await fetch(fetchUrl);
-      
-      if (!res.ok) {
-        // Fallback to raw XML fetch if json3 is rejected
-        const xmlRes = await fetch(baseUrl);
-        const xmlText = await xmlRes.text();
-        return this.parseXml(xmlText);
+      let fetchUrl = baseUrl;
+      if (translationLang) {
+        fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + `tlang=${translationLang}`;
       }
 
-      const text = await res.text();
+      // Try JSON3 format first (fastest, cleanest structure)
+      const json3Url = fetchUrl.includes('fmt=json3') ? fetchUrl : `${fetchUrl}&fmt=json3`;
       try {
-        const json = JSON.parse(text);
-        return this.parseJson3(json);
-      } catch {
+        const res = await fetch(json3Url, { credentials: 'omit' });
+        if (res.ok) {
+          const text = await res.text();
+          const json = JSON.parse(text);
+          const parsed = this.parseJson3(json);
+          if (parsed && parsed.length > 0) return parsed;
+        }
+      } catch (e) {
+        // Fallback to XML / raw format
+      }
+
+      // Fallback 1: Fetch raw / XML
+      const rawRes = await fetch(fetchUrl, { credentials: 'omit' });
+      if (rawRes.ok) {
+        const text = await rawRes.text();
+        if (text.startsWith('WEBVTT')) {
+          return this.parseVtt(text);
+        }
         return this.parseXml(text);
       }
+
+      return [];
     } catch (err) {
       console.warn('[GeetKosh] Failed to fetch or parse transcript:', err);
       return [];
@@ -49,14 +77,16 @@ class TranscriptParser {
     for (const event of data.events) {
       if (!event.segs || !Array.isArray(event.segs)) continue;
 
-      const rawLine = event.segs
-        .map(s => s.utf8 || '')
-        .join('')
-        .replace(/\n+/g, ' ')
-        .trim();
+      const rawLine = this.decodeHtml(
+        event.segs
+          .map(s => s.utf8 || '')
+          .join('')
+          .replace(/\n+/g, ' ')
+          .trim()
+      );
 
-      // Ignore empty or whitespace-only lines
-      if (!rawLine || rawLine === '\n') continue;
+      // Ignore empty or whitespace-only lines or audio bracket cues like [Music] / ♪
+      if (!rawLine || rawLine === '\n' || /^\[(?:music|applause|cheering)\]$/i.test(rawLine) || rawLine === '♪') continue;
 
       const timeMs = Math.round(Number(event.tStartMs) || 0);
       const durationMs = Math.round(Number(event.dDurationMs) || 3000);
@@ -86,31 +116,37 @@ class TranscriptParser {
 
     // Use DOMParser if available in browser context
     if (typeof DOMParser !== 'undefined') {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(xmlString, 'text/xml');
-      const textNodes = doc.querySelectorAll('text');
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(xmlString, 'text/xml');
+        const textNodes = doc.querySelectorAll('text');
 
-      textNodes.forEach(node => {
-        const rawText = (node.textContent || '').replace(/\n+/g, ' ').trim();
-        if (!rawText) return;
+        if (textNodes && textNodes.length > 0) {
+          textNodes.forEach(node => {
+            const rawText = this.decodeHtml((node.textContent || '').replace(/\n+/g, ' ').trim());
+            if (!rawText || /^\[(?:music|applause|cheering)\]$/i.test(rawText) || rawText === '♪') return;
 
-        const startSec = parseFloat(node.getAttribute('start') || '0');
-        const durSec = parseFloat(node.getAttribute('dur') || '3');
+            const startSec = parseFloat(node.getAttribute('start') || '0');
+            const durSec = parseFloat(node.getAttribute('dur') || '3');
 
-        const timeMs = Math.round(startSec * 1000);
-        const durationMs = Math.round(durSec * 1000);
-        const isDev = /[\u0900-\u097F]/.test(rawText);
+            const timeMs = Math.round(startSec * 1000);
+            const durationMs = Math.round(durSec * 1000);
+            const isDev = /[\u0900-\u097F]/.test(rawText);
 
-        lines.push({
-          line_order: order++,
-          time_ms: timeMs,
-          duration_ms: durationMs,
-          text_np: isDev ? rawText : '',
-          text_en: !isDev ? rawLine : ''
-        });
-      });
+            lines.push({
+              line_order: order++,
+              time_ms: timeMs,
+              duration_ms: durationMs,
+              text_np: isDev ? rawText : '',
+              text_en: !isDev ? rawText : ''
+            });
+          });
 
-      return lines;
+          if (lines.length > 0) return lines;
+        }
+      } catch (domErr) {
+        // Fall back to regex parser
+      }
     }
 
     // Fallback regex parser
@@ -119,15 +155,9 @@ class TranscriptParser {
     while ((match = regex.exec(xmlString)) !== null) {
       const startSec = parseFloat(match[1]);
       const durSec = parseFloat(match[2] || '3');
-      const rawText = match[3]
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .trim();
+      const rawText = this.decodeHtml(match[3]).replace(/\n+/g, ' ').trim();
 
-      if (!rawText) continue;
+      if (!rawText || /^\[(?:music|applause|cheering)\]$/i.test(rawText) || rawText === '♪') continue;
 
       const isDev = /[\u0900-\u097F]/.test(rawText);
       lines.push({
@@ -140,6 +170,67 @@ class TranscriptParser {
     }
 
     return lines;
+  }
+
+  /**
+   * Parses WebVTT subtitle format
+   */
+  static parseVtt(vttString) {
+    if (!vttString) return [];
+    const lines = [];
+    let order = 1;
+
+    const blockRegex = /(?:(\d{2}:)?(\d{2}):(\d{2})[.,](\d{3}))\s*-->\s*(?:(\d{2}:)?(\d{2}):(\d{2})[.,](\d{3}))\s*\r?\n([\s\S]*?)(?=\r?\n\r?\n|$)/gi;
+    let match;
+
+    while ((match = blockRegex.exec(vttString)) !== null) {
+      const startH = match[1] ? parseInt(match[1].replace(':', ''), 10) : 0;
+      const startM = parseInt(match[2], 10);
+      const startS = parseInt(match[3], 10);
+      const startMs = parseInt(match[4], 10);
+      const startTime = startH * 3600000 + startM * 60000 + startS * 1000 + startMs;
+
+      const endH = match[5] ? parseInt(match[5].replace(':', ''), 10) : 0;
+      const endM = parseInt(match[6], 10);
+      const endS = parseInt(match[7], 10);
+      const endMs = parseInt(match[8], 10);
+      const endTime = endH * 3600000 + endM * 60000 + endS * 1000 + endMs;
+
+      const rawText = this.decodeHtml(match[9].replace(/<[^>]+>/g, '').replace(/\n+/g, ' ').trim());
+      if (!rawText || /^\[(?:music|applause|cheering)\]$/i.test(rawText) || rawText === '♪') continue;
+
+      const isDev = /[\u0900-\u097F]/.test(rawText);
+      lines.push({
+        line_order: order++,
+        time_ms: startTime,
+        duration_ms: Math.max(1000, endTime - startTime),
+        text_np: isDev ? rawText : '',
+        text_en: !isDev ? rawText : ''
+      });
+    }
+
+    return lines;
+  }
+
+  /**
+   * Merges primary and secondary caption tracks by timestamp alignment
+   * Combines Devanagari (text_np) and Romanized/English (text_en) into single synchronized lyric objects
+   */
+  static mergeCaptionTracks(primaryLines, secondaryLines) {
+    if (!secondaryLines || secondaryLines.length === 0) return primaryLines || [];
+    if (!primaryLines || primaryLines.length === 0) return secondaryLines || [];
+
+    return primaryLines.map(line => {
+      // Find closest matching line in secondary track within 1.5 seconds (1500ms)
+      const match = secondaryLines.find(sec => Math.abs(sec.time_ms - line.time_ms) <= 1500);
+      if (!match) return line;
+
+      return {
+        ...line,
+        text_np: line.text_np || match.text_np || '',
+        text_en: line.text_en || match.text_en || ''
+      };
+    });
   }
 
   /**
@@ -158,9 +249,9 @@ class TranscriptParser {
       const sec = parseInt(match[2], 10);
       const frac = match[3].length === 2 ? parseInt(match[3], 10) * 10 : parseInt(match[3], 10);
       const timeMs = min * 60000 + sec * 1000 + frac;
-      const text = match[4].trim();
+      const text = this.decodeHtml(match[4].trim());
 
-      if (!text) continue;
+      if (!text || /^\[(?:music|applause)\]$/i.test(text) || text === '♪') continue;
 
       const isDev = /[\u0900-\u097F]/.test(text);
       lines.push({

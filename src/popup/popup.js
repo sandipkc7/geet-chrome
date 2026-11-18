@@ -28,6 +28,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const prevCaptionsBadge = document.getElementById('prev-captions-badge');
   const lyricsSummaryText = document.getElementById('accordion-summary-text');
   const lyricsList = document.getElementById('lyrics-lines-list');
+  const fSubTrack = document.getElementById('f-sub-track');
+  const subTrackContainer = document.getElementById('sub-track-container');
+  const subSourcePill = document.getElementById('sub-source-pill');
 
   const fTitleNp = document.getElementById('f-title-np');
   const fTitleEn = document.getElementById('f-title-en');
@@ -171,6 +174,48 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
+   * Renders the synchronized subtitle lines preview
+   */
+  function renderLyricsPreview(lines) {
+    const count = (lines && lines.length) || 0;
+    lyricsSummaryText.textContent = `YouTube Subtitles (${count} lines)`;
+    prevCaptionsBadge.textContent = count > 0 ? `✓ ${count} CC lines from YouTube` : 'No CC subtitles on video';
+    prevCaptionsBadge.style.color = count > 0 ? '#34D399' : '#A1A1AA';
+
+    if (count > 0 && subSourcePill) {
+      subSourcePill.classList.remove('hidden');
+      subSourcePill.textContent = '✓ YouTube CC';
+    } else if (subSourcePill) {
+      subSourcePill.classList.add('hidden');
+    }
+
+    lyricsList.innerHTML = '';
+    if (count > 0) {
+      lines.slice(0, 20).forEach(line => {
+        const row = document.createElement('div');
+        row.className = 'line-row';
+        const textHtml = (line.text_np && line.text_en)
+          ? `<span><b>${line.text_np}</b> <span style="color: #A1A1AA; font-size: 10px;">(${line.text_en})</span></span>`
+          : `<span>${line.text_np || line.text_en}</span>`;
+        row.innerHTML = `
+          <span class="line-time">${formatMs(line.time_ms)}</span>
+          <span class="line-text">${textHtml}</span>
+        `;
+        lyricsList.appendChild(row);
+      });
+
+      if (count > 20) {
+        const more = document.createElement('div');
+        more.className = 'line-row';
+        more.innerHTML = `<span class="line-text" style="color: #71717A;">... and ${count - 20} more lines</span>`;
+        lyricsList.appendChild(more);
+      }
+    } else {
+      lyricsList.innerHTML = '<div class="line-row" style="background: rgba(200, 30, 30, 0.08); border-radius: 6px; padding: 6px 8px;"><span class="line-text" style="color: #E4E4E7; font-size: 11px;">⚠️ No YouTube CC subtitles available on this video. Only metadata will be saved. AI lyrics can be generated on-demand later via Admin Dashboard or song page.</span></div>';
+    }
+  }
+
+  /**
    * Populates form and preview card with extracted song data
    */
   function populateForm(data) {
@@ -180,10 +225,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     prevThumbnail.src = data.thumbnail_url;
     prevDuration.textContent = formatDuration(data.duration_seconds);
     prevYtId.textContent = `YT ID: ${data.youtube_video_id}`;
-
-    const linesCount = (data.lyrics && data.lyrics.length) || 0;
-    prevCaptionsBadge.textContent = linesCount > 0 ? `✓ ${linesCount} synced lines` : 'No captions found';
-    prevCaptionsBadge.style.color = linesCount > 0 ? '#34D399' : '#A1A1AA';
 
     // Inputs
     fTitleNp.value = data.title_np || '';
@@ -205,30 +246,48 @@ document.addEventListener('DOMContentLoaded', async () => {
     fScale.value = data.scale || 'C Major';
     fBpm.value = data.bpm || '';
 
-    // Lyrics Preview
-    lyricsSummaryText.textContent = `Synchronized Lyrics (${linesCount} lines)`;
-    lyricsList.innerHTML = '';
+    // Subtitle Tracks Setup
+    const tracks = data.caption_tracks || [];
+    if (tracks.length > 0 && subTrackContainer && fSubTrack) {
+      subTrackContainer.classList.remove('hidden');
+      fSubTrack.innerHTML = '';
 
-    if (linesCount > 0) {
-      data.lyrics.slice(0, 15).forEach(line => {
-        const row = document.createElement('div');
-        row.className = 'line-row';
-        row.innerHTML = `
-          <span class="line-time">${formatMs(line.time_ms)}</span>
-          <span class="line-text">${line.text_np || line.text_en}</span>
-        `;
-        lyricsList.appendChild(row);
+      const autoOpt = document.createElement('option');
+      autoOpt.value = '__auto__';
+      autoOpt.textContent = `⭐ Auto-Detected Bilingual (${(data.lyrics && data.lyrics.length) || 0} lines)`;
+      fSubTrack.appendChild(autoOpt);
+
+      tracks.forEach(tr => {
+        const opt = document.createElement('option');
+        opt.value = tr.baseUrl;
+        opt.textContent = `${tr.name}${tr.isAsr ? ' (Auto-generated)' : ' (Official Subtitle)'}`;
+        fSubTrack.appendChild(opt);
       });
 
-      if (linesCount > 15) {
-        const more = document.createElement('div');
-        more.className = 'line-row';
-        more.innerHTML = `<span class="line-text" style="color: #71717A;">... and ${linesCount - 15} more lines</span>`;
-        lyricsList.appendChild(more);
-      }
-    } else {
-      lyricsList.innerHTML = '<div class="line-row" style="background: rgba(200, 30, 30, 0.08); border-radius: 6px; padding: 6px 8px;"><span class="line-text" style="color: #E4E4E7; font-size: 11px;">✨ No YouTube CC subtitles found. Only song metadata will be saved now (lyrics can be generated anytime via 1-click in the Admin Dashboard or Song page).</span></div>';
+      fSubTrack.onchange = async () => {
+        const val = fSubTrack.value;
+        if (val === '__auto__') {
+          renderLyricsPreview(data.lyrics || []);
+          return;
+        }
+
+        // Fetch specific subtitle track
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs[0]) {
+          chrome.tabs.sendMessage(tabs[0].id, { action: 'FETCH_SUBTITLE_TRACK', baseUrl: val }, (res) => {
+            if (res && res.success && res.lines) {
+              currentSongData.lyrics = res.lines;
+              renderLyricsPreview(res.lines);
+            }
+          });
+        }
+      };
+    } else if (subTrackContainer) {
+      subTrackContainer.classList.add('hidden');
     }
+
+    // Render Lyrics Preview
+    renderLyricsPreview(data.lyrics || []);
 
     stateReady.classList.remove('hidden');
   }

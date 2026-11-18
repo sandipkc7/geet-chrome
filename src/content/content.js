@@ -11,39 +11,65 @@
   let isButtonInjected = false;
 
   /**
-   * Injects a main-world bridge to extract ytInitialPlayerResponse.captions
+   * Injects a main-world bridge to extract live ytInitialPlayerResponse.captions and movie_player
    */
   function injectCaptionBridge() {
     try {
+      if (document.getElementById('geetkosh-caption-bridge')) return;
+
       const script = document.createElement('script');
       script.id = 'geetkosh-caption-bridge';
       script.textContent = `
         (function() {
           function sendPlayerState() {
             try {
-              const resp = window.ytInitialPlayerResponse || (window.ytplayer && window.ytplayer.config && window.ytplayer.config.args && JSON.parse(window.ytplayer.config.args.raw_player_response));
-              const captionTracks = resp?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-              const videoDetails = resp?.videoDetails || {};
+              let captionTracks = [];
+              let videoDetails = {};
+
+              // 1. Direct Movie Player element (most accurate on live YouTube watch pages)
+              const moviePlayer = document.getElementById('movie_player');
+              if (moviePlayer && typeof moviePlayer.getPlayerResponse === 'function') {
+                const resp = moviePlayer.getPlayerResponse();
+                captionTracks = resp?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+                videoDetails = resp?.videoDetails || {};
+              }
+
+              // 2. Global ytInitialPlayerResponse
+              if ((!captionTracks || !captionTracks.length) && window.ytInitialPlayerResponse) {
+                captionTracks = window.ytInitialPlayerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+                if (!videoDetails.videoId) videoDetails = window.ytInitialPlayerResponse?.videoDetails || {};
+              }
+
+              // 3. Fallback to ytplayer config args
+              if ((!captionTracks || !captionTracks.length) && window.ytplayer && window.ytplayer.config && window.ytplayer.config.args) {
+                try {
+                  const raw = JSON.parse(window.ytplayer.config.args.raw_player_response);
+                  captionTracks = raw?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+                  if (!videoDetails.videoId) videoDetails = raw?.videoDetails || {};
+                } catch (e) {}
+              }
+
               window.postMessage({
                 source: 'GEETKOSH_BRIDGE',
                 captionTracks: captionTracks,
                 videoDetails: {
-                  title: videoDetails.title,
-                  author: videoDetails.author,
-                  lengthSeconds: videoDetails.lengthSeconds,
-                  viewCount: videoDetails.viewCount,
-                  videoId: videoDetails.videoId,
-                  shortDescription: videoDetails.shortDescription
+                  title: videoDetails.title || '',
+                  author: videoDetails.author || '',
+                  lengthSeconds: videoDetails.lengthSeconds || 0,
+                  viewCount: videoDetails.viewCount || 0,
+                  videoId: videoDetails.videoId || '',
+                  shortDescription: videoDetails.shortDescription || ''
                 }
               }, '*');
             } catch (e) {}
           }
+
           sendPlayerState();
           window.addEventListener('yt-navigate-finish', sendPlayerState);
+          window.addEventListener('GEETKOSH_REQUEST_PLAYER_STATE', sendPlayerState);
         })();
       `;
       (document.head || document.documentElement).appendChild(script);
-      script.remove();
     } catch (e) {
       console.warn('[GeetKosh] Bridge injection warning:', e);
     }
@@ -297,18 +323,49 @@
       viewCount = parseInt(viewsMatch[1], 10);
     }
 
-    // Captions & Synced Lyrics
+    // Captions & Synced Subtitles Extraction from YouTube CC
     let lyricLines = [];
-    let selectedCaptionTrack = null;
+    const formattedTracks = (currentCaptionTracks || []).map((t, idx) => ({
+      id: idx,
+      name: t.name?.simpleText || (t.languageCode ? t.languageCode.toUpperCase() : `Track ${idx + 1}`),
+      languageCode: t.languageCode || '',
+      baseUrl: t.baseUrl || '',
+      isAsr: t.kind === 'asr'
+    }));
 
     if (currentCaptionTracks && currentCaptionTracks.length > 0) {
-      // Find Nepali track first, then any other language
-      selectedCaptionTrack = currentCaptionTracks.find(t => t.languageCode === 'ne')
-        || currentCaptionTracks.find(t => (t.name?.simpleText || '').toLowerCase().includes('nepali'))
-        || currentCaptionTracks[0];
+      // Find Nepali track first, then English track, then any
+      const nepaliTrack = currentCaptionTracks.find(t => t.languageCode === 'ne' || (t.name?.simpleText || '').toLowerCase().includes('nepali'));
+      const englishTrack = currentCaptionTracks.find(t => t.languageCode === 'en' || (t.name?.simpleText || '').toLowerCase().includes('english'));
 
-      if (selectedCaptionTrack && selectedCaptionTrack.baseUrl) {
-        lyricLines = await TranscriptParser.fetchAndParse(selectedCaptionTrack.baseUrl);
+      if (nepaliTrack && nepaliTrack.baseUrl) {
+        const nepaliLines = await TranscriptParser.fetchAndParse(nepaliTrack.baseUrl);
+        if (englishTrack && englishTrack.baseUrl) {
+          const englishLines = await TranscriptParser.fetchAndParse(englishTrack.baseUrl);
+          lyricLines = TranscriptParser.mergeCaptionTracks(nepaliLines, englishLines);
+        } else {
+          // Attempt YouTube auto-translation to Roman/English for full bilingual subtitles
+          try {
+            const englishLines = await TranscriptParser.fetchAndParse(nepaliTrack.baseUrl, 'en');
+            lyricLines = (englishLines && englishLines.length > 0)
+              ? TranscriptParser.mergeCaptionTracks(nepaliLines, englishLines)
+              : nepaliLines;
+          } catch {
+            lyricLines = nepaliLines;
+          }
+        }
+      } else if (englishTrack && englishTrack.baseUrl) {
+        const englishLines = await TranscriptParser.fetchAndParse(englishTrack.baseUrl);
+        try {
+          const nepaliLines = await TranscriptParser.fetchAndParse(englishTrack.baseUrl, 'ne');
+          lyricLines = (nepaliLines && nepaliLines.length > 0)
+            ? TranscriptParser.mergeCaptionTracks(nepaliLines, englishLines)
+            : englishLines;
+        } catch {
+          lyricLines = englishLines;
+        }
+      } else if (currentCaptionTracks[0] && currentCaptionTracks[0].baseUrl) {
+        lyricLines = await TranscriptParser.fetchAndParse(currentCaptionTracks[0].baseUrl);
       }
     }
 
@@ -338,8 +395,9 @@
       view_count: viewCount,
       sync_status: lyricLines.length > 0 ? 'verified' : 'raw',
       lyrics: lyricLines,
-      pinned_comment: pinnedComment,
-      caption_tracks_count: currentCaptionTracks.length
+      caption_tracks: formattedTracks,
+      caption_tracks_count: (currentCaptionTracks || []).length,
+      pinned_comment: pinnedComment
     };
   }
 
@@ -396,12 +454,24 @@
   // Listen for requests from popup or background worker
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'EXTRACT_SONG_DATA') {
-      extractSongData().then(data => {
-        sendResponse({ success: true, data });
+      window.dispatchEvent(new CustomEvent('GEETKOSH_REQUEST_PLAYER_STATE'));
+      setTimeout(() => {
+        extractSongData().then(data => {
+          sendResponse({ success: true, data });
+        }).catch(err => {
+          sendResponse({ success: false, error: err.message });
+        });
+      }, 100);
+      return true; // Keep message channel open for async response
+    }
+
+    if (request.action === 'FETCH_SUBTITLE_TRACK') {
+      TranscriptParser.fetchAndParse(request.baseUrl).then(lines => {
+        sendResponse({ success: true, lines });
       }).catch(err => {
         sendResponse({ success: false, error: err.message });
       });
-      return true; // Keep message channel open for async response
+      return true;
     }
   });
 
