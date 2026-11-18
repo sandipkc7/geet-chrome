@@ -706,9 +706,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // RENDER LABEL / DISCOGRAPHY VIEW
   // ========================================================
 
+  // Helper for consistent title casing
+  const formatCase = (str) => (typeof toTitleCase === 'function' ? toTitleCase(str) : (str || '').trim());
+
   function renderLabelView(data) {
     setViewState('label-view');
-    labelArtistName.textContent = data.artist_name || 'Nepali Artist';
+    labelArtistName.textContent = formatCase(data.artist_name || 'Nepali Artist');
     labelSongCount.textContent = `${data.songs?.length || 0} songs found on this page`;
 
     labelSongsList.innerHTML = '';
@@ -720,8 +723,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       songs.forEach(s => {
         const row = document.createElement('div');
         row.className = 'label-song-row';
+        const displayTitle = formatCase(s.title);
         row.innerHTML = `
-          <span class="song-name" title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</span>
+          <span class="song-name" title="${escapeHtml(displayTitle)}">${escapeHtml(displayTitle)}</span>
           <button class="btn-open-scrape" type="button">Open & Scrape ↗</button>
         `;
 
@@ -757,20 +761,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     prevDuration.textContent = formatDuration(data.duration_seconds || 0);
     prevYtId.textContent = data.youtube_video_id ? `YT ID: ${data.youtube_video_id}` : 'YT ID: None';
 
-    // Inputs
-    fTitleEn.value = data.title_en || '';
-    fTitleNp.value = data.title_np || '';
+    // Inputs (Auto-capitalized first letter of each word)
+    fTitleEn.value = formatCase(data.title_en || '');
+    fTitleNp.value = (data.title_np || '').trim();
 
     const singersList = (data.singers && data.singers.length > 0)
       ? data.singers
       : (data.artist_name ? [data.artist_name] : []);
-    fSingers.value = singersList.join(', ');
-    if (fArtistName) fArtistName.value = data.artist_name || singersList.join(', ');
+    const formattedSingers = singersList.map(formatCase);
+    fSingers.value = formattedSingers.join(', ');
+    if (fArtistName) fArtistName.value = data.artist_name ? formatCase(data.artist_name) : formattedSingers.join(', ');
 
-    fFeaturing.value = (data.featuring || []).join(', ');
-    fLyricists.value = (data.lyricists || []).join(', ');
-    fComposers.value = (data.composers || []).join(', ');
-    fMovieName.value = data.movie_name || '';
+    fFeaturing.value = (data.featuring || []).map(formatCase).join(', ');
+    fLyricists.value = (data.lyricists || []).map(formatCase).join(', ');
+    fComposers.value = (data.composers || []).map(formatCase).join(', ');
+    fMovieName.value = formatCase(data.movie_name || '');
 
     // Chords & Scale
     fChords.value = data.chords_progression || (data.chords ? data.chords.join(', ') : '');
@@ -820,7 +825,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setViewState('ready');
 
     // Automatically trigger zero-quota YouTube search in sidebar!
-    const searchTarget = `${data.title_en} ${data.artist_name || ''}`.trim();
+    const searchTarget = `${fTitleEn.value} ${fSingers.value}`.trim();
     if (searchTarget) {
       triggerYouTubeSidebarSearch(searchTarget);
     }
@@ -836,19 +841,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     prevDuration.textContent = formatDuration(song.duration_seconds || 0);
     prevYtId.textContent = song.youtube_video_id ? `YT ID: ${song.youtube_video_id}` : 'YT ID: None';
 
-    fTitleEn.value = song.title_en || '';
-    fTitleNp.value = song.title_np || '';
+    fTitleEn.value = formatCase(song.title_en || '');
+    fTitleNp.value = (song.title_np || '').trim();
 
-    const singers = song.credits?.singers?.map(c => c.name_en) || [];
-    const featuring = song.credits?.featuring?.map(c => c.name_en) || [];
-    const lyricists = song.credits?.lyricists?.map(c => c.name_en) || [];
-    const composers = song.credits?.composers?.map(c => c.name_en) || [];
+    const singers = (song.credits?.singers?.map(c => c.name_en) || []).map(formatCase);
+    const featuring = (song.credits?.featuring?.map(c => c.name_en) || []).map(formatCase);
+    const lyricists = (song.credits?.lyricists?.map(c => c.name_en) || []).map(formatCase);
+    const composers = (song.credits?.composers?.map(c => c.name_en) || []).map(formatCase);
 
     fSingers.value = singers.join(', ');
     fFeaturing.value = featuring.join(', ');
     fLyricists.value = lyricists.join(', ');
     fComposers.value = composers.join(', ');
-    fMovieName.value = song.movie_name || '';
+    fMovieName.value = formatCase(song.movie_name || '');
 
     fChords.value = song.chords_progression || '';
     fScale.value = song.scale || 'C Major';
@@ -872,6 +877,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sheetLines = lines.map(l => (l.chords ? `${l.chords}\n${l.text_roman || l.text_np}` : (l.text_roman || l.text_np))).filter(Boolean);
     fLyricsRaw.value = sheetLines.join('\n\n');
   }
+
+  // Auto-capitalize first letter of each word on blur for manual form fields
+  const autoCapitalizeInputs = [fTitleEn, fSingers, fFeaturing, fLyricists, fComposers, fMovieName];
+  autoCapitalizeInputs.forEach(inputEl => {
+    if (!inputEl) return;
+    inputEl.addEventListener('blur', () => {
+      if (inputEl.value && typeof toTitleCase === 'function') {
+        inputEl.value = toTitleCase(inputEl.value);
+      }
+    });
+  });
 
   // ========================================================
   // RENDER LYRICS PREVIEW & EDIT MODES

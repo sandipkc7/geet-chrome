@@ -233,17 +233,65 @@ function parseYouTubeTitle(rawTitle, fallbackChannelName = '') {
   const primaryArtistDisplay = singers.join(', ') || artistPart || cleanedChannelFallback;
   const movieName = extractMovieName(rawTitle);
 
+  const cleanTitleEn = hasDevanagari(titleEn) ? titleEn.trim() : toTitleCase(titleEn);
+  const cleanSingers = singers.map(s => toTitleCase(s));
+  const cleanFeaturing = featuring.map(f => toTitleCase(f));
+  const cleanArtistDisplay = toTitleCase(primaryArtistDisplay);
+  const cleanMovie = movieName ? toTitleCase(movieName) : '';
+
   return {
     title_np: titleNp.trim(),
-    title_en: titleEn.trim(),
-    artist_name: primaryArtistDisplay,
-    movie_name: movieName,
-    singers: singers,
-    featuring: featuring
+    title_en: cleanTitleEn,
+    artist_name: cleanArtistDisplay,
+    movie_name: cleanMovie,
+    singers: cleanSingers,
+    featuring: cleanFeaturing
+  };
+}
+
+/**
+ * Auto-capitalizes the first letter of each word in a string (Title Case)
+ * Converts underscores to spaces, respects acronyms/roman numerals (AD, OST, II, III),
+ * preserves Devanagari text, and handles hyphenated/bracketed sub-words.
+ */
+function toTitleCase(str) {
+  if (!str || typeof str !== 'string') return '';
+  // Convert underscores to spaces (common in URLs and song slugs)
+  let text = str.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+
+  const PRESERVE_UPPER = new Set([
+    'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X',
+    'OST', 'DJ', 'MC', 'AD', 'BC', 'EP', 'LP', 'BPM', 'CC', 'TV', 'HD', '4K'
+  ]);
+
+  return text.split(' ').map(token => {
+    const cleanWord = token.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (PRESERVE_UPPER.has(cleanWord)) {
+      return token.toUpperCase();
+    }
+    return token.replace(/([a-zA-Z\u00C0-\u024F])([a-zA-Z\u00C0-\u024F]*)/g, (match, first, rest) => {
+      return first.toUpperCase() + rest.toLowerCase();
+    });
+  }).join(' ');
+}
+
+// Attach to window for content scripts and popups
+if (typeof window !== 'undefined') {
+  window.toTitleCase = toTitleCase;
+  window.TitleCleaner = {
+    toTitleCase,
+    parseYouTubeTitle,
+    hasDevanagari,
+    stripNoise,
+    splitArtistList,
+    extractFeaturingArtists,
+    extractDualScriptTitle,
+    extractMovieName
   };
 }
 
 // Export for extension modules or content scripts
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { parseYouTubeTitle, hasDevanagari, stripNoise, splitArtistList, extractFeaturingArtists, extractDualScriptTitle, extractMovieName };
+  module.exports = { toTitleCase, parseYouTubeTitle, hasDevanagari, stripNoise, splitArtistList, extractFeaturingArtists, extractDualScriptTitle, extractMovieName };
 }

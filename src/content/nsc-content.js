@@ -35,8 +35,8 @@
       }
     }
 
-    const cleanTitle = (typeof TitleCleaner !== 'undefined' && TitleCleaner.cleanTitle)
-      ? TitleCleaner.cleanTitle(rawTitle).cleanTitle
+    const cleanTitle = (typeof toTitleCase === 'function')
+      ? toTitleCase(rawTitle)
       : rawTitle;
 
     // 2. Credits from .song_profile table
@@ -51,20 +51,30 @@
         const text = tr.textContent.trim();
         if (/Band|Singer/i.test(text)) {
           const parts = text.split(':');
-          if (parts.length > 1) artistName = parts[1].trim();
+          if (parts.length > 1) {
+            const val = parts[1].trim();
+            artistName = (typeof toTitleCase === 'function') ? toTitleCase(val) : val;
+          }
         } else if (/Lyricist/i.test(text)) {
           const parts = text.split(':');
-          if (parts.length > 1 && parts[1].trim()) lyricists.push(parts[1].trim());
+          if (parts.length > 1 && parts[1].trim()) {
+            const val = (typeof toTitleCase === 'function') ? toTitleCase(parts[1].trim()) : parts[1].trim();
+            lyricists.push(val);
+          }
         } else if (/Musician|Music/i.test(text)) {
           const parts = text.split(':');
-          if (parts.length > 1 && parts[1].trim()) composers.push(parts[1].trim());
+          if (parts.length > 1 && parts[1].trim()) {
+            const val = (typeof toTitleCase === 'function') ? toTitleCase(parts[1].trim()) : parts[1].trim();
+            composers.push(val);
+          }
         }
       });
     }
 
     // Fallback artist from title: "NepaliSongChord::Song by Artist"
     if (!artistName && document.title.includes(' by ')) {
-      artistName = document.title.split(' by ').pop().trim();
+      const val = document.title.split(' by ').pop().trim();
+      artistName = (typeof toTitleCase === 'function') ? toTitleCase(val) : val;
     }
 
     // 3. Scale / Key Notes from .song_desc
@@ -137,13 +147,19 @@
    */
   function extractArtistPage() {
     let artistName = document.title.replace(/^NepaliSongChord::/i, '').trim();
+    if (typeof toTitleCase === 'function') {
+      artistName = toTitleCase(artistName);
+    }
     const songs = [];
 
     const songLinks = document.querySelectorAll('a[href*="viewsong"], a[href*="/song/"]');
     songLinks.forEach(a => {
-      const title = a.textContent.trim();
+      let title = a.textContent.trim();
+      if (typeof toTitleCase === 'function') {
+        title = toTitleCase(title);
+      }
       const href = a.href;
-      if (title && href && !songs.some(s => s.url === href)) {
+      if (title && href && !songs.some(p => p.url === href)) {
         songs.push({
           title: title,
           url: href

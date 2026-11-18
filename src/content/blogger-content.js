@@ -36,11 +36,18 @@
       }
     }
 
+    if (artistName && typeof toTitleCase === 'function') {
+      artistName = toTitleCase(artistName);
+    }
+
     const posts = [];
     const postTitles = document.querySelectorAll('.post-title a, h2.entry-title a, h3.entry-title a');
 
     postTitles.forEach(a => {
-      const title = a.textContent.trim();
+      let title = a.textContent.trim();
+      if (typeof toTitleCase === 'function') {
+        title = toTitleCase(title);
+      }
       const href = a.href;
       if (title && href && !posts.some(p => p.url === href)) {
         // Date from URL /YYYY/MM/
@@ -75,8 +82,8 @@
     // 1. Post Title
     const titleEl = document.querySelector('.post-title, h2.entry-title, h1.entry-title, h2.post-title');
     let rawTitle = titleEl ? titleEl.textContent.trim() : document.title.replace(/^Nepali Songs And Chords:\s*/i, '').trim();
-    const cleanTitle = (typeof TitleCleaner !== 'undefined' && TitleCleaner.cleanTitle)
-      ? TitleCleaner.cleanTitle(rawTitle).cleanTitle
+    let cleanTitle = (typeof toTitleCase === 'function')
+      ? toTitleCase(rawTitle)
       : rawTitle;
 
     // 2. Post Body
@@ -98,6 +105,10 @@
       if (tagEls.length > 0) {
         artistName = tagEls[0].textContent.trim();
       }
+    }
+
+    if (artistName && typeof toTitleCase === 'function') {
+      artistName = toTitleCase(artistName);
     }
 
     // 4. Parse Chords & Lyrics using ChordParser
