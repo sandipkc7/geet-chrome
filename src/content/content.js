@@ -111,7 +111,8 @@
       singers: [],
       featuring: [],
       lyricists: [],
-      composers: []
+      composers: [],
+      movie_name: ''
     };
     if (!descText) return result;
 
@@ -119,6 +120,13 @@
     for (const rawLine of lines) {
       const line = rawLine.trim();
       if (!line) continue;
+
+      // Match Movie / Film / चलचित्र / फिल्म
+      const movieMatch = line.match(/^(?:movie|film|cinema|चलचित्र|फिल्म)\s*[:\-–]\s*(.+)$/i);
+      if (movieMatch && !result.movie_name) {
+        result.movie_name = movieMatch[1].replace(/["'“]/g, '').trim();
+        continue;
+      }
 
       // Match Singer / Vocals / स्वर
       const singerMatch = line.match(/^(?:vocal|vocals|singer|singers|स्वर)\s*[:\-–]\s*(.+)$/i);
@@ -263,6 +271,7 @@
     const featuring = Array.from(featuringSet).filter(f => !singersSet.has(f));
     const lyricists = Array.from(lyricistsSet);
     const composers = Array.from(composersSet);
+    const movieName = descCredits.movie_name || parsedTitle.movie_name || credits.album || '';
 
     // Duration extraction
     let durationSeconds = 0;
@@ -316,6 +325,7 @@
       title_np: parsedTitle.title_np || credits.song || rawTitle,
       title_en: parsedTitle.title_en || rawTitle,
       artist_name: singers.join(', ') || finalArtist,
+      movie_name: movieName,
       singers: singers,
       featuring: featuring,
       lyricists: lyricists,

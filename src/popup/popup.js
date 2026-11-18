@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fFeaturing = document.getElementById('f-featuring');
   const fLyricists = document.getElementById('f-lyricists');
   const fComposers = document.getElementById('f-composers');
+  const fMovieName = document.getElementById('f-movie-name');
   const fGenre = document.getElementById('f-genre');
   const fYear = document.getElementById('f-year');
   const fScale = document.getElementById('f-scale');
@@ -199,6 +200,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     fComposers.value = (data.composers || []).join(', ');
 
     fGenre.value = data.genre || 'Adhunik';
+    if (fMovieName) fMovieName.value = data.movie_name || '';
     fYear.value = data.release_year || new Date().getFullYear();
     fScale.value = data.scale || 'C Major';
     fBpm.value = data.bpm || '';
@@ -225,7 +227,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         lyricsList.appendChild(more);
       }
     } else {
-      lyricsList.innerHTML = '<div class="line-row" style="background: rgba(200, 30, 30, 0.08); border-radius: 6px; padding: 6px 8px;"><span class="line-text" style="color: #E4E4E7; font-size: 11px;">✨ No YouTube CC subtitles found. Gemini AI will automatically extract and synchronize lyrics upon publishing.</span></div>';
+      lyricsList.innerHTML = '<div class="line-row" style="background: rgba(200, 30, 30, 0.08); border-radius: 6px; padding: 6px 8px;"><span class="line-text" style="color: #E4E4E7; font-size: 11px;">✨ No YouTube CC subtitles found. Only song metadata will be saved now (lyrics can be generated anytime via 1-click in the Admin Dashboard or Song page).</span></div>';
     }
 
     stateReady.classList.remove('hidden');
@@ -309,6 +311,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       title_np: fTitleNp.value.trim(),
       title_en: fTitleEn.value.trim(),
       artist_name: primaryArtistDisplay,
+      movie_name: (fMovieName && fMovieName.value.trim()) || null,
       singers: singersList,
       featuring: featList,
       lyricists: lyricistsList,
@@ -323,7 +326,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       view_count: currentSongData.view_count || 0,
       sync_status: (currentSongData.lyrics && currentSongData.lyrics.length > 0) ? 'verified' : 'raw',
       lyrics: currentSongData.lyrics || [],
-      auto_ai_lyrics: true
+      auto_ai_lyrics: false
     };
 
     try {

@@ -12,6 +12,27 @@ const NOISE_PATTERNS = [
 ];
 
 /**
+ * Extracts movie/film name from title clauses
+ * e.g. "Kutu Ma Kutu - From Nepali Movie Dui Rupaiyan", "Maya Luki Luki | Movie: CHAKKA PANJA 2"
+ */
+function extractMovieName(text) {
+  if (!text) return '';
+  const patterns = [
+    /(?:from\s+(?:the\s+)?(?:nepali\s+)?(?:movie|film|cinema|चलचित्र|फिल्म))\s*["'“]?([^"'”|–—\-()\[\]]+)["'”]?/i,
+    /(?:movie|film|cinema|चलचित्र|फिल्म)\s*[:\-–]\s*["'“]?([^"'”|–—\-()\[\]]+)["'”]?/i,
+    /\bost\s*[:\-–]?\s*["'“]?([^"'”|–—\-()\[\]]+)["'”]?/i,
+  ];
+  for (const pat of patterns) {
+    const match = text.match(pat);
+    if (match && match[1]) {
+      const name = match[1].replace(/\s*(?:official|song|full\s+video|hd|4k).*$/i, '').trim();
+      if (name.length > 1) return name;
+    }
+  }
+  return '';
+}
+
+/**
  * Checks if a string contains any Devanagari characters
  */
 function hasDevanagari(text) {
@@ -210,11 +231,13 @@ function parseYouTubeTitle(rawTitle, fallbackChannelName = '') {
   }
 
   const primaryArtistDisplay = singers.join(', ') || artistPart || cleanedChannelFallback;
+  const movieName = extractMovieName(rawTitle);
 
   return {
     title_np: titleNp.trim(),
     title_en: titleEn.trim(),
     artist_name: primaryArtistDisplay,
+    movie_name: movieName,
     singers: singers,
     featuring: featuring
   };
@@ -222,5 +245,5 @@ function parseYouTubeTitle(rawTitle, fallbackChannelName = '') {
 
 // Export for extension modules or content scripts
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { parseYouTubeTitle, hasDevanagari, stripNoise, splitArtistList, extractFeaturingArtists, extractDualScriptTitle };
+  module.exports = { parseYouTubeTitle, hasDevanagari, stripNoise, splitArtistList, extractFeaturingArtists, extractDualScriptTitle, extractMovieName };
 }
