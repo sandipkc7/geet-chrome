@@ -12,7 +12,7 @@ A specialized, zero-quota Chrome Extension (Manifest V3) for the **GeetKosh** ed
 ## Installation in Chrome / Edge / Brave
 1. Clone this repository or open the folder:
    ```bash
-   git clone https://github.com/sandipkc7/geet-chrome-extension.git
+   git clone https://github.com/sandipkc7/geet-chrome.git
    ```
 2. Open Google Chrome and navigate to `chrome://extensions`.
 3. Enable **Developer mode** in the top-right corner.

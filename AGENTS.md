@@ -41,7 +41,7 @@ This project is organized into three separate, focused Git repositories:
 2. **Backend:** `backend/` &rarr; Remote: `https://github.com/sandipkc7/geet-backend.git`
    - Production Domain: `https://geet-backend.sandipkc.com.np`
    - Deploy: Auto-pulled via GitHub Webhook (`/api/webhook/deploy`) or Web Console (`/migrate`).
-3. **Chrome Extension:** `chrome-extension/` &rarr; Remote: `https://github.com/sandipkc7/geet-chrome-extension.git`
+3. **Chrome Extension:** `chrome-extension/` &rarr; Remote: `https://github.com/sandipkc7/geet-chrome.git`
    - Purpose: Zero-quota YouTube music, metadata, and synchronized lyrics harvester.
    - Target: Packaged Manifest V3 extension loadable in Chrome/Edge.
 
