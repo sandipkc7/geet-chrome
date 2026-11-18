@@ -18,11 +18,15 @@
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://geet-backend.sandipkc.com.np/*",
-    "http://localhost/*"
+    "http://localhost/*",
+    "https://*.blogspot.com/*",
+    "http://*.blogspot.com/*",
+    "http://*.nepalisongchord.com/*",
+    "https://*.nepalisongchord.com/*"
   ],
   "action": {
     "default_popup": "src/popup/popup.html",
-    "default_title": "GeetKosh Harvester",
+    "default_title": "GeetKosh Harvester & Catalog Hub",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -46,6 +50,30 @@
       ],
       "css": [
         "src/content/content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*.blogspot.com/*",
+        "http://*.blogspot.com/*"
+      ],
+      "js": [
+        "src/utils/title-cleaner.js",
+        "src/utils/chord-parser.js",
+        "src/content/blogger-content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://*.nepalisongchord.com/*",
+        "https://*.nepalisongchord.com/*"
+      ],
+      "js": [
+        "src/utils/title-cleaner.js",
+        "src/utils/chord-parser.js",
+        "src/content/nsc-content.js"
       ],
       "run_at": "document_idle"
     }

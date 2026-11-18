@@ -565,3 +565,418 @@ input:focus, select:focus {
 .toast.toast-error { background: #7F1D1D; color: #FCA5A5; border: 1px solid #991B1B; }
 .toast.toast-success { background: #064E3B; color: #6EE7B7; border: 1px solid #047857; }
 .toast.hidden { display: none; }
+
+/* ======================================================== */
+/* Multi-Source Search & Catalog Companion Additions       */
+/* ======================================================== */
+
+/* Search Section */
+.search-section {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-input-wrap .search-icon {
+  position: absolute;
+  left: 10px;
+  font-size: 13px;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.search-input-wrap input {
+  width: 100%;
+  padding: 8px 30px 8px 32px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-main);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-input-wrap input:focus {
+  border-color: var(--primary-simrik);
+  box-shadow: 0 0 0 2px rgba(200, 30, 30, 0.2);
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.clear-search-btn:hover {
+  color: #fff;
+}
+
+/* Autocomplete Dropdown */
+.search-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #18181B;
+  border: 1px solid #3F3F46;
+  border-radius: var(--radius-md);
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  z-index: 500;
+}
+
+.search-state {
+  padding: 10px 14px;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #27272A;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-item:hover {
+  background-color: #27272A;
+}
+
+.search-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.search-item-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-item-artist {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.search-item-badges {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.badge-sync {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.badge-sync-verified { background: rgba(200, 30, 30, 0.2); color: #F87171; }
+.badge-sync-lrclib { background: rgba(16, 185, 129, 0.2); color: #34D399; }
+.badge-sync-raw { background: rgba(161, 161, 170, 0.2); color: #D4D4D8; }
+
+/* Source Indicator Bar */
+.source-indicator-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #141417;
+  border: 1px solid #27272A;
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  margin-bottom: 12px;
+  font-size: 11px;
+}
+
+.source-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.badge-source {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.badge-source-yt { background: #DC2626; color: #fff; }
+.badge-source-blogger { background: #EA580C; color: #fff; }
+.badge-source-nsc { background: #2563EB; color: #fff; }
+.badge-source-catalog { background: #7C3AED; color: #fff; }
+.badge-source-generic { background: #52525B; color: #fff; }
+
+.source-details {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-icon-tiny {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.btn-icon-tiny:hover { color: #fff; }
+
+/* Supported Archives List on Empty State */
+.supported-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+  text-align: left;
+  background: #18181B;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.supported-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #D4D4D8;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-yt { background: #EF4444; }
+.dot-blogger { background: #F97316; }
+.dot-nsc { background: #3B82F6; }
+
+/* Label View (Discography Table) */
+.label-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.label-header-card {
+  background: #18181B;
+  border: 1px solid #3F3F46;
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+.badge-artist-pill {
+  font-size: 10px;
+  font-weight: 700;
+  color: #FBBF24;
+  text-transform: uppercase;
+}
+
+.label-meta h2 {
+  font-size: 16px;
+  margin: 4px 0 2px 0;
+  color: #fff;
+}
+
+.badge-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.label-song-table-wrap {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.table-header-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: #27272A;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.label-songs-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.label-song-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-bottom: 1px solid #27272A;
+  font-size: 12px;
+}
+
+.label-song-row:last-child {
+  border-bottom: none;
+}
+
+.label-song-row .song-name {
+  font-weight: 500;
+  color: #FAF7F2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 8px;
+}
+
+.btn-open-scrape {
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  background: #3F3F46;
+  color: #FAF7F2;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.btn-open-scrape:hover {
+  background: var(--primary-simrik);
+}
+
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 11px;
+}
+
+.label-pagination-row {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+/* Catalog Target Editing Banner */
+.catalog-target-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid #7C3AED;
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  margin-bottom: 12px;
+}
+
+.target-info {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  overflow: hidden;
+}
+
+.target-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #A78BFA;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.target-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-text-tiny {
+  background: transparent;
+  border: none;
+  color: #C4B5FD;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.btn-text-tiny:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* Lyrics Mode Bar */
+.lyrics-mode-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #27272A;
+  padding-bottom: 6px;
+}
+
+.mode-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+.mode-btn.active {
+  background: #27272A;
+  color: #fff;
+}
+
+.lyrics-raw-container textarea {
+  width: 100%;
+  background: #141417;
+  border: 1px solid #3F3F46;
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 2.05;
+  padding: 8px;
+  outline: none;
+  resize: vertical;
+}
+
+.lyrics-raw-container textarea:focus {
+  border-color: var(--primary-simrik);
+}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GeetKosh Harvester</title>
+  <title>GeetKosh Harvester & Catalog Hub</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
@@ -16,7 +16,7 @@
         <span class="brand-badge">गीत</span>
         <div class="brand-text">
           <h1>GeetKosh</h1>
-          <span class="sub">YouTube Harvester</span>
+          <span class="sub">Music & Lyrics Hub</span>
         </div>
       </div>
       <div class="header-actions">
@@ -46,7 +46,7 @@
           <input type="password" id="cfg-bearer-token" placeholder="Paste bearer token or admin secret" />
           <button id="btn-toggle-token-vis" type="button" class="action-btn">👁️</button>
         </div>
-        <small class="hint">Generate via GeetKosh Admin login or use your deployment secret.</small>
+        <small class="hint">Required for publishing new songs or editing catalog entries.</small>
       </div>
       <div class="settings-actions">
         <button id="btn-test-conn" class="btn btn-outline">Test Connection</button>
@@ -55,34 +55,105 @@
       <div id="settings-feedback" class="feedback-msg hidden"></div>
     </section>
 
+    <!-- Universal Catalog Search Bar -->
+    <div class="search-section">
+      <div class="search-input-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="catalog-search-input" placeholder="Search GeetKosh songs or artists..." autocomplete="off" />
+        <button id="btn-clear-search" class="clear-search-btn hidden" type="button" title="Clear">&times;</button>
+      </div>
+      <!-- Autocomplete Dropdown -->
+      <div id="search-dropdown" class="search-dropdown hidden">
+        <div id="search-loading" class="search-state hidden">Searching GeetKosh...</div>
+        <div id="search-results-list" class="search-results-list"></div>
+      </div>
+    </div>
+
+    <!-- Active Source Indicator Pill -->
+    <div id="source-indicator-bar" class="source-indicator-bar">
+      <div class="source-info">
+        <span id="source-badge" class="badge-source badge-source-generic">Page</span>
+        <span id="source-details-text" class="source-details">Detecting tab...</span>
+      </div>
+      <button id="btn-refresh-tab" class="btn-icon-tiny" title="Refresh Page Detection">↻</button>
+    </div>
+
     <!-- Main Content Area -->
     <main id="main-content">
       
-      <!-- State: Not on YouTube -->
-      <div id="state-not-youtube" class="empty-state hidden">
+      <!-- State: Empty / Not on Supported Page -->
+      <div id="state-not-supported" class="empty-state hidden">
         <div class="empty-icon">🎵</div>
-        <h2>Not a YouTube Tab</h2>
-        <p>Please open a YouTube song or music video tab to harvest its metadata and synchronized lyrics.</p>
+        <h2>Supported Music Archives</h2>
+        <p>Open one of the supported music sources to scrape chords & lyrics, or search the GeetKosh catalog above:</p>
+        <div class="supported-list">
+          <div class="supported-item">
+            <span class="dot dot-yt"></span>
+            <b>YouTube</b> (Official audio, credits, subtitle CC tracks)
+          </div>
+          <div class="supported-item">
+            <span class="dot dot-blogger"></span>
+            <b>Blogger Chords</b> (Labels, discographies, chord posts)
+          </div>
+          <div class="supported-item">
+            <span class="dot dot-nsc"></span>
+            <b>NepaliSongChord</b> (Songs, chords, artist profiles, YT links)
+          </div>
+        </div>
       </div>
 
       <!-- State: Loading / Extracting -->
       <div id="state-loading" class="empty-state">
         <div class="spinner"></div>
-        <h2>Extracting Metadata...</h2>
-        <p>Reading page DOM, audio credits box, and timed caption tracks.</p>
+        <h2 id="loading-title">Detecting Music Page...</h2>
+        <p id="loading-desc">Extracting metadata, chord progressions, and lyric lines.</p>
       </div>
 
-      <!-- State: Song Data Form (Ready to Ingest) -->
+      <!-- State: Label / Artist Discography Listing View (Blogger Label / NSC Artist) -->
+      <div id="state-label-view" class="label-view hidden">
+        <div class="label-header-card">
+          <div class="label-meta">
+            <span class="badge-artist-pill">🎤 Artist Catalog</span>
+            <h2 id="label-artist-name">Artist Name</h2>
+            <span id="label-song-count" class="badge-count">0 songs found on page</span>
+          </div>
+        </div>
+
+        <div class="label-song-table-wrap">
+          <div class="table-header-row">
+            <span>Song Title</span>
+            <span>Action</span>
+          </div>
+          <div id="label-songs-list" class="label-songs-list">
+            <!-- Dynamically populated rows -->
+          </div>
+        </div>
+
+        <div id="label-pagination-row" class="label-pagination-row hidden">
+          <a id="btn-older-posts" href="#" target="_blank" class="btn btn-outline btn-sm">Older Posts ↗</a>
+        </div>
+      </div>
+
+      <!-- State: Song Data Form (Ready to Ingest / Edit) -->
       <div id="state-ready" class="form-view hidden">
         
-        <!-- Video Preview Card -->
+        <!-- Target / Catalog Link Status Banner -->
+        <div id="catalog-target-banner" class="catalog-target-banner hidden">
+          <div class="target-info">
+            <span class="target-tag">Editing Catalog Song:</span>
+            <span id="target-song-title" class="target-title">Song Title</span>
+          </div>
+          <button id="btn-unlink-target" type="button" class="btn-text-tiny" title="Cancel edit mode">&times; Cancel</button>
+        </div>
+
+        <!-- Video & Audio Preview Card -->
         <div class="video-preview-card">
           <div class="thumb-wrap">
             <img id="prev-thumbnail" src="" alt="Thumbnail" />
             <span id="prev-duration" class="badge-duration">0:00</span>
           </div>
           <div class="video-meta">
-            <span id="prev-yt-id" class="badge-ytid">YT ID: -</span>
+            <span id="prev-yt-id" class="badge-ytid">YT ID: None</span>
             <div id="prev-captions-badge" class="badge-captions">0 lines</div>
           </div>
         </div>
@@ -90,25 +161,25 @@
         <!-- Metadata Form -->
         <form id="song-harvest-form">
           
-          <!-- Nepali Title -->
-          <div class="form-group">
-            <label for="f-title-np">Devanagari Title (नेपाली शीर्षक)</label>
-            <input type="text" id="f-title-np" class="font-devanagari" required placeholder="e.g. फूलको आँखामा" />
-          </div>
-
           <!-- English Title -->
           <div class="form-group">
-            <label for="f-title-en">Romanized Title (English)</label>
-            <input type="text" id="f-title-en" required placeholder="e.g. Phool Ko Aankhama" />
+            <label for="f-title-en">Song Title (English / Romanized)</label>
+            <input type="text" id="f-title-en" required placeholder="e.g. Malai Bhanna Aaundaina" />
+          </div>
+
+          <!-- Nepali Title -->
+          <div class="form-group">
+            <label for="f-title-np">Devanagari Title (नेपाली शीर्षक — Optional)</label>
+            <input type="text" id="f-title-np" class="font-devanagari" placeholder="e.g. मलाई भन्न आउँदैन" />
           </div>
 
           <!-- Primary Singer(s) -->
           <div class="form-group">
             <div class="label-with-hint">
               <label for="f-singers">Primary Artist(s) / Singer(s)</label>
-              <span class="label-hint">Comma-separated for multiple</span>
+              <span class="label-hint">Comma-separated</span>
             </div>
-            <input type="text" id="f-singers" required placeholder="e.g. Sajjan Raj Vaidya, Bipul Chettri" />
+            <input type="text" id="f-singers" required placeholder="e.g. Aastha, Naren Limbu" />
             <input type="hidden" id="f-artist-name" />
           </div>
 
@@ -116,9 +187,9 @@
           <div class="form-group">
             <div class="label-with-hint">
               <label for="f-featuring">Featuring Artist(s)</label>
-              <span class="label-hint">feat. / ft. (Optional)</span>
+              <span class="label-hint">Optional</span>
             </div>
-            <input type="text" id="f-featuring" placeholder="e.g. Yabesh Thapa, Oasis Thapa" />
+            <input type="text" id="f-featuring" placeholder="e.g. Yabesh Thapa" />
           </div>
 
           <!-- Additional Credits (Lyricists & Composers) -->
@@ -130,11 +201,11 @@
             <div class="credits-preview-body">
               <div class="form-group">
                 <label for="f-lyricists">Lyricist(s)</label>
-                <input type="text" id="f-lyricists" placeholder="e.g. Gopal Prasad Rimal" />
+                <input type="text" id="f-lyricists" placeholder="e.g. Naren Limbu" />
               </div>
               <div class="form-group" style="margin-bottom: 0;">
                 <label for="f-composers">Composer(s) / Music</label>
-                <input type="text" id="f-composers" placeholder="e.g. Amber Gurung" />
+                <input type="text" id="f-composers" placeholder="e.g. Aastha Band" />
               </div>
             </div>
           </details>
@@ -145,7 +216,16 @@
               <label for="f-movie-name">Movie / Film Name</label>
               <span class="label-hint">Optional (चलचित्र)</span>
             </div>
-            <input type="text" id="f-movie-name" placeholder="e.g. Kabaddi 4, Loot, Jerryy" />
+            <input type="text" id="f-movie-name" placeholder="e.g. Kabaddi 4, Loot" />
+          </div>
+
+          <!-- Chords Progression (Extracted or Editable) -->
+          <div class="form-group">
+            <div class="label-with-hint">
+              <label for="f-chords">Guitar Chords Progression</label>
+              <span class="label-hint">e.g. F, Gm, Bb, C</span>
+            </div>
+            <input type="text" id="f-chords" placeholder="e.g. F, C, Bb, Gm" />
           </div>
 
           <!-- Grid: Genre & Release Year -->
@@ -153,9 +233,9 @@
             <div class="form-group col">
               <label for="f-genre">Genre</label>
               <select id="f-genre">
+                <option value="Pop/Rock">Pop / Rock</option>
                 <option value="Adhunik">Adhunik (आधुनिक)</option>
                 <option value="Lok Dohori">Lok Dohori (लोक दोहोरी)</option>
-                <option value="Pop/Rock">Pop / Rock</option>
                 <option value="Nephop">Nephop (नेपहप)</option>
                 <option value="Folk">Traditional Folk</option>
                 <option value="Classical">Classical (शास्त्रीय)</option>
@@ -173,40 +253,65 @@
           <div class="form-row">
             <div class="form-group col">
               <label for="f-scale">Scale / Key</label>
-              <input type="text" id="f-scale" placeholder="e.g. C Major" value="C Major" />
+              <input type="text" id="f-scale" placeholder="e.g. F Major" value="F Major" />
             </div>
             <div class="form-group col">
               <label for="f-bpm">BPM (Optional)</label>
-              <input type="number" id="f-bpm" placeholder="e.g. 72" />
+              <input type="number" id="f-bpm" placeholder="e.g. 78" />
             </div>
           </div>
 
-          <!-- Synced Lyrics Accordion -->
+          <!-- YouTube Video ID (Editable / Auto-detected from Embed) -->
+          <div class="form-group">
+            <div class="label-with-hint">
+              <label for="f-youtube-id">YouTube Video ID (or URL)</label>
+              <span class="label-hint">11-char ID or Watch URL</span>
+            </div>
+            <input type="text" id="f-youtube-id" placeholder="e.g. larNU8IQXdE" />
+          </div>
+
+          <!-- Lyrics Accordion (CC Subtitles or Chords/Plain Lyrics) -->
           <details class="lyrics-accordion" open>
             <summary>
               <div class="summary-title-wrap">
-                <span id="accordion-summary-text">YouTube Subtitles (0 lines)</span>
-                <span id="sub-source-pill" class="pill-verified hidden">✓ YouTube CC</span>
+                <span id="accordion-summary-text">Lyrics Lines (0 lines)</span>
+                <span id="sub-source-pill" class="pill-verified hidden">✓ Source</span>
               </div>
               <span class="chevron">▼</span>
             </summary>
             <div class="lyrics-preview-body">
-              <!-- Subtitle Track Selector -->
+              <!-- Subtitle Track Selector (if YouTube CC) -->
               <div id="sub-track-container" class="sub-track-row hidden">
                 <label for="f-sub-track">CC Track:</label>
                 <select id="f-sub-track"></select>
               </div>
+
+              <!-- Lyrics Mode Tabs: Line Preview vs Raw Text Editor -->
+              <div class="lyrics-mode-bar">
+                <button type="button" id="btn-mode-lines" class="mode-btn active">Lines Preview</button>
+                <button type="button" id="btn-mode-raw" class="mode-btn">Plain Text Editor</button>
+              </div>
+
+              <!-- Lines List View -->
               <div id="lyrics-lines-list" class="lines-list">
                 <!-- Line previews injected here -->
+              </div>
+
+              <!-- Raw Text View (Hidden by default) -->
+              <div id="lyrics-raw-container" class="lyrics-raw-container hidden">
+                <textarea id="f-lyrics-raw" rows="8" placeholder="Paste or edit plain lyric lines here (one per line)..."></textarea>
               </div>
             </div>
           </details>
 
-          <!-- Publish Action Bar -->
+          <!-- Publish / Update Action Bar -->
           <div class="form-actions">
+            <button type="button" id="btn-match-catalog" class="btn btn-outline" title="Merge scraped data into an existing GeetKosh song">
+              🔗 Merge into Existing
+            </button>
             <button type="submit" id="btn-publish" class="btn btn-publish">
               <span class="btn-icon">🚀</span>
-              <span class="btn-text">Publish to GeetKosh</span>
+              <span id="btn-publish-text" class="btn-text">Publish to GeetKosh</span>
             </button>
           </div>
 
@@ -217,13 +322,13 @@
       <!-- State: Success Screen -->
       <div id="state-success" class="empty-state hidden">
         <div class="success-icon">✓</div>
-        <h2>Published Successfully!</h2>
+        <h2 id="success-title">Published Successfully!</h2>
         <p id="success-message">Song was imported into GeetKosh catalog.</p>
         <div class="success-links">
           <a id="link-view-song" href="#" target="_blank" class="btn btn-outline">View on GeetKosh ↗</a>
           <a id="link-open-studio" href="#" target="_blank" class="btn btn-primary">Open in Studio ↗</a>
         </div>
-        <button id="btn-harvest-another" class="btn btn-link">Import Another Video</button>
+        <button id="btn-harvest-another" class="btn btn-link">Ingest Another Song</button>
       </div>
 
     </main>
@@ -234,6 +339,7 @@
   </div>
 
   <script src="../utils/title-cleaner.js"></script>
+  <script src="../utils/chord-parser.js"></script>
   <script src="../content/transcript-parser.js"></script>
   <script src="popup.js"></script>
 </body>
