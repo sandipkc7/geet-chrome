@@ -211,7 +211,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         lyricsList.appendChild(more);
       }
     } else {
-      lyricsList.innerHTML = '<div class="line-row"><span class="line-text" style="color: #71717A;">No timed captions detected on this video.</span></div>';
+      lyricsList.innerHTML = '<div class="line-row" style="background: rgba(200, 30, 30, 0.08); border-radius: 6px; padding: 6px 8px;"><span class="line-text" style="color: #E4E4E7; font-size: 11px;">✨ No YouTube CC subtitles found. Gemini AI will automatically extract and synchronize lyrics upon publishing.</span></div>';
     }
 
     stateReady.classList.remove('hidden');
@@ -283,7 +283,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       thumbnail_url: currentSongData.thumbnail_url,
       view_count: currentSongData.view_count || 0,
       sync_status: (currentSongData.lyrics && currentSongData.lyrics.length > 0) ? 'verified' : 'raw',
-      lyrics: currentSongData.lyrics || []
+      lyrics: currentSongData.lyrics || [],
+      auto_ai_lyrics: true
     };
 
     try {
