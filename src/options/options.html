@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ne">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GeetKosh Harvester — Settings</title>
+  <style>
+    :root {
+      --bg: #0E0E10;
+      --card: #18181B;
+      --input: #27272A;
+      --border: #3F3F46;
+      --text: #FAF7F2;
+      --muted: #A1A1AA;
+      --primary: #C81E1E;
+      --primary-hover: #DC2626;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", sans-serif;
+      margin: 0;
+      padding: 40px 20px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 540px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .badge {
+      background: var(--primary);
+      color: #fff;
+      font-weight: 800;
+      font-size: 16px;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0;
+    }
+    p.sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin: 2px 0 0 0;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input[type="text"], input[type="url"], input[type="password"], select {
+      width: 100%;
+      background: var(--input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: #fff;
+      outline: none;
+      box-sizing: border-box;
+    }
+    input:focus { border-color: var(--primary); }
+    .hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+      display: block;
+    }
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    button {
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { background: var(--input); }
+    .status-msg {
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      display: none;
+    }
+    .status-msg.success { background: #064E3B; color: #6EE7B7; border: 1px solid #047857; display: block; }
+    .status-msg.error { background: #7F1D1D; color: #FCA5A5; border: 1px solid #991B1B; display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge">गीत</div>
+      <div>
+        <h1>GeetKosh YouTube Harvester Settings</h1>
+        <p class="sub">Configure API connection and authorization credentials.</p>
+      </div>
+    </div>
+
+    <form id="options-form">
+      <div class="form-group">
+        <label for="backend-url">GeetKosh Backend REST API URL</label>
+        <input type="url" id="backend-url" required placeholder="https://geet-backend.sandipkc.com.np" />
+        <span class="hint">Use production <code>https://geet-backend.sandipkc.com.np</code> or local test URL.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="bearer-token">Admin Bearer Token (or Master Admin Secret)</label>
+        <input type="password" id="bearer-token" required placeholder="Enter token or admin secret" />
+        <span class="hint">Stored securely inside isolated Chrome local storage (never shared with web pages).</span>
+      </div>
+
+      <div class="form-group">
+        <label for="default-genre">Default Music Genre</label>
+        <select id="default-genre">
+          <option value="Adhunik">Adhunik (आधुनिक)</option>
+          <option value="Lok Dohori">Lok Dohori (लोक दोहोरी)</option>
+          <option value="Pop/Rock">Pop / Rock</option>
+          <option value="Nephop">Nephop (नेपहप)</option>
+          <option value="Folk">Traditional Folk</option>
+          <option value="Classical">Classical (शास्त्रीय)</option>
+          <option value="Filmy">Filmy</option>
+        </select>
+      </div>
+
+      <div class="actions">
+        <button type="button" id="btn-test" class="btn-outline">Test Connection</button>
+        <button type="submit" class="btn-primary">Save Settings</button>
+      </div>
+
+      <div id="status" class="status-msg"></div>
+    </form>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

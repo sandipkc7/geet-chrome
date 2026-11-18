@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ne">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GeetKosh Harvester</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <!-- App Container -->
+  <div class="app-container">
+    
+    <!-- Top Header -->
+    <header class="header">
+      <div class="brand">
+        <span class="brand-badge">गीत</span>
+        <div class="brand-text">
+          <h1>GeetKosh</h1>
+          <span class="sub">YouTube Harvester</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span id="conn-status" class="status-pill status-checking" title="Checking API status...">● Checking</span>
+        <button id="btn-toggle-settings" class="icon-btn" title="API Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Settings Drawer (Hidden by default) -->
+    <section id="settings-panel" class="settings-panel hidden">
+      <div class="panel-header">
+        <h3>Backend API Settings</h3>
+        <button id="btn-close-settings" class="close-btn">&times;</button>
+      </div>
+      <div class="form-group">
+        <label for="cfg-backend-url">Backend REST API URL</label>
+        <input type="url" id="cfg-backend-url" placeholder="https://geet-backend.sandipkc.com.np" />
+      </div>
+      <div class="form-group">
+        <label for="cfg-bearer-token">Admin Bearer Token (or Secret)</label>
+        <div class="input-with-action">
+          <input type="password" id="cfg-bearer-token" placeholder="Paste bearer token or admin secret" />
+          <button id="btn-toggle-token-vis" type="button" class="action-btn">👁️</button>
+        </div>
+        <small class="hint">Generate via GeetKosh Admin login or use your deployment secret.</small>
+      </div>
+      <div class="settings-actions">
+        <button id="btn-test-conn" class="btn btn-outline">Test Connection</button>
+        <button id="btn-save-settings" class="btn btn-primary">Save Settings</button>
+      </div>
+      <div id="settings-feedback" class="feedback-msg hidden"></div>
+    </section>
+
+    <!-- Main Content Area -->
+    <main id="main-content">
+      
+      <!-- State: Not on YouTube -->
+      <div id="state-not-youtube" class="empty-state hidden">
+        <div class="empty-icon">🎵</div>
+        <h2>Not a YouTube Tab</h2>
+        <p>Please open a YouTube song or music video tab to harvest its metadata and synchronized lyrics.</p>
+      </div>
+
+      <!-- State: Loading / Extracting -->
+      <div id="state-loading" class="empty-state">
+        <div class="spinner"></div>
+        <h2>Extracting Metadata...</h2>
+        <p>Reading page DOM, audio credits box, and timed caption tracks.</p>
+      </div>
+
+      <!-- State: Song Data Form (Ready to Ingest) -->
+      <div id="state-ready" class="form-view hidden">
+        
+        <!-- Video Preview Card -->
+        <div class="video-preview-card">
+          <div class="thumb-wrap">
+            <img id="prev-thumbnail" src="" alt="Thumbnail" />
+            <span id="prev-duration" class="badge-duration">0:00</span>
+          </div>
+          <div class="video-meta">
+            <span id="prev-yt-id" class="badge-ytid">YT ID: -</span>
+            <div id="prev-captions-badge" class="badge-captions">0 lines</div>
+          </div>
+        </div>
+
+        <!-- Metadata Form -->
+        <form id="song-harvest-form">
+          
+          <!-- Nepali Title -->
+          <div class="form-group">
+            <label for="f-title-np">Devanagari Title (नेपाली शीर्षक)</label>
+            <input type="text" id="f-title-np" class="font-devanagari" required placeholder="e.g. फूलको आँखामा" />
+          </div>
+
+          <!-- English Title -->
+          <div class="form-group">
+            <label for="f-title-en">Romanized Title (English)</label>
+            <input type="text" id="f-title-en" required placeholder="e.g. Phool Ko Aankhama" />
+          </div>
+
+          <!-- Artist Name -->
+          <div class="form-group">
+            <label for="f-artist-name">Artist / Singer Name</label>
+            <input type="text" id="f-artist-name" required placeholder="e.g. Ani Choying Drolma" />
+          </div>
+
+          <!-- Grid: Genre & Release Year -->
+          <div class="form-row">
+            <div class="form-group col">
+              <label for="f-genre">Genre</label>
+              <select id="f-genre">
+                <option value="Adhunik">Adhunik (आधुनिक)</option>
+                <option value="Lok Dohori">Lok Dohori (लोक दोहोरी)</option>
+                <option value="Pop/Rock">Pop / Rock</option>
+                <option value="Nephop">Nephop (नेपहप)</option>
+                <option value="Folk">Traditional Folk</option>
+                <option value="Classical">Classical (शास्त्रीय)</option>
+                <option value="Filmy">Filmy</option>
+                <option value="Ghazal">Ghazal</option>
+              </select>
+            </div>
+            <div class="form-group col">
+              <label for="f-year">Release Year</label>
+              <input type="number" id="f-year" min="1950" max="2030" />
+            </div>
+          </div>
+
+          <!-- Grid: Scale & BPM -->
+          <div class="form-row">
+            <div class="form-group col">
+              <label for="f-scale">Scale / Key</label>
+              <input type="text" id="f-scale" placeholder="e.g. C Major" value="C Major" />
+            </div>
+            <div class="form-group col">
+              <label for="f-bpm">BPM (Optional)</label>
+              <input type="number" id="f-bpm" placeholder="e.g. 72" />
+            </div>
+          </div>
+
+          <!-- Synced Lyrics Accordion -->
+          <details class="lyrics-accordion">
+            <summary>
+              <span id="accordion-summary-text">Synchronized Lyrics (0 lines)</span>
+              <span class="chevron">▼</span>
+            </summary>
+            <div class="lyrics-preview-body">
+              <div id="lyrics-lines-list" class="lines-list">
+                <!-- Line previews injected here -->
+              </div>
+            </div>
+          </details>
+
+          <!-- Publish Action Bar -->
+          <div class="form-actions">
+            <button type="submit" id="btn-publish" class="btn btn-publish">
+              <span class="btn-icon">🚀</span>
+              <span class="btn-text">Publish to GeetKosh</span>
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+
+      <!-- State: Success Screen -->
+      <div id="state-success" class="empty-state hidden">
+        <div class="success-icon">✓</div>
+        <h2>Published Successfully!</h2>
+        <p id="success-message">Song was imported into GeetKosh catalog.</p>
+        <div class="success-links">
+          <a id="link-view-song" href="#" target="_blank" class="btn btn-outline">View on GeetKosh ↗</a>
+          <a id="link-open-studio" href="#" target="_blank" class="btn btn-primary">Open in Studio ↗</a>
+        </div>
+        <button id="btn-harvest-another" class="btn btn-link">Import Another Video</button>
+      </div>
+
+    </main>
+
+    <!-- Global Toast Alert -->
+    <div id="toast" class="toast hidden"></div>
+
+  </div>
+
+  <script src="../utils/title-cleaner.js"></script>
+  <script src="../content/transcript-parser.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

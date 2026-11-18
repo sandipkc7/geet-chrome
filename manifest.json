@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "GeetKosh (गीतकोश) — YouTube Harvester",
+  "version": "1.0.0",
+  "description": "Zero-quota YouTube music metadata, credit box parser, and synchronized lyrics harvester for GeetKosh.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://geet-backend.sandipkc.com.np/*",
+    "http://localhost/*"
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "GeetKosh Harvester",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/watch*",
+        "https://www.youtube.com/shorts*"
+      ],
+      "js": [
+        "src/utils/title-cleaner.js",
+        "src/content/transcript-parser.js",
+        "src/content/content.js"
+      ],
+      "css": [
+        "src/content/content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  }
+}

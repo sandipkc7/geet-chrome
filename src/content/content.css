@@ -1,0 +1,49 @@
+/* GeetKosh Injected Button on YouTube Action Bar */
+.geetkosh-harvest-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  margin-right: 8px;
+  border-radius: 18px;
+  border: none;
+  cursor: pointer;
+  font-family: "Roboto", "Noto Sans Devanagari", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #FAF7F2;
+  background: linear-gradient(135deg, #C81E1E 0%, #991B1B 100%);
+  box-shadow: 0 2px 6px rgba(200, 30, 30, 0.35);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  z-index: 100;
+}
+
+.geetkosh-harvest-btn:hover {
+  background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
+  box-shadow: 0 4px 12px rgba(200, 30, 30, 0.5);
+  transform: translateY(-1px);
+}
+
+.geetkosh-harvest-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 3px rgba(200, 30, 30, 0.4);
+}
+
+.geetkosh-btn-icon {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.geetkosh-btn-clicked {
+  animation: geetkosh-pulse 0.4s ease-out;
+}
+
+@keyframes geetkosh-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
