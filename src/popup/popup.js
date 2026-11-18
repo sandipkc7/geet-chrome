@@ -32,6 +32,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fTitleNp = document.getElementById('f-title-np');
   const fTitleEn = document.getElementById('f-title-en');
   const fArtistName = document.getElementById('f-artist-name');
+  const fSingers = document.getElementById('f-singers');
+  const fFeaturing = document.getElementById('f-featuring');
+  const fLyricists = document.getElementById('f-lyricists');
+  const fComposers = document.getElementById('f-composers');
   const fGenre = document.getElementById('f-genre');
   const fYear = document.getElementById('f-year');
   const fScale = document.getElementById('f-scale');
@@ -183,7 +187,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Inputs
     fTitleNp.value = data.title_np || '';
     fTitleEn.value = data.title_en || '';
-    fArtistName.value = data.artist_name || '';
+    
+    // Multiple Artists & Credits
+    const singersList = (data.singers && data.singers.length > 0)
+      ? data.singers
+      : (data.artist_name ? [data.artist_name] : []);
+    fSingers.value = singersList.join(', ');
+    if (fArtistName) fArtistName.value = data.artist_name || singersList.join(', ');
+    fFeaturing.value = (data.featuring || []).join(', ');
+    fLyricists.value = (data.lyricists || []).join(', ');
+    fComposers.value = (data.composers || []).join(', ');
+
     fGenre.value = data.genre || 'Adhunik';
     fYear.value = data.release_year || new Date().getFullYear();
     fScale.value = data.scale || 'C Major';
@@ -270,11 +284,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnPublish.disabled = true;
     btnPublish.innerHTML = '<span class="spinner" style="width: 14px; height: 14px; border-width: 2px; margin: 0 4px 0 0;"></span> Publishing...';
 
+    // Parse comma/semicolon/ampersand separated multiple artists
+    const parseList = (str) => (str || '')
+      .split(/[,;&]/)
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const singersList = parseList(fSingers.value);
+    const featList = parseList(fFeaturing.value);
+    const lyricistsList = parseList(fLyricists.value);
+    const composersList = parseList(fComposers.value);
+
+    // Build structured credits array
+    const credits = [];
+    singersList.forEach(name => credits.push({ name, role: 'singer' }));
+    featList.forEach(name => credits.push({ name, role: 'featuring' }));
+    lyricistsList.forEach(name => credits.push({ name, role: 'lyricist' }));
+    composersList.forEach(name => credits.push({ name, role: 'composer' }));
+
+    const primaryArtistDisplay = singersList.join(', ') || fSingers.value.trim();
+
     const payload = {
       youtube_video_id: currentSongData.youtube_video_id,
       title_np: fTitleNp.value.trim(),
       title_en: fTitleEn.value.trim(),
-      artist_name: fArtistName.value.trim(),
+      artist_name: primaryArtistDisplay,
+      singers: singersList,
+      featuring: featList,
+      lyricists: lyricistsList,
+      composers: composersList,
+      credits: credits,
       genre: fGenre.value,
       release_year: parseInt(fYear.value, 10) || new Date().getFullYear(),
       duration_seconds: currentSongData.duration_seconds || 240,

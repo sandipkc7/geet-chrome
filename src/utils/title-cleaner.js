@@ -1,6 +1,6 @@
 /**
  * GeetKosh Title & Metadata Sanitizer
- * Intelligently separates Devanagari title, Romanized/English title, and Artist names from YouTube video titles.
+ * Intelligently extracts Devanagari title, Romanized title, Primary Artist(s), and Featuring Artist(s)
  */
 
 const NOISE_PATTERNS = [
@@ -8,7 +8,6 @@ const NOISE_PATTERNS = [
   /\(\s*(?:official\s+)?(?:music\s+)?(?:video|audio|lyric\s+video|visualizer|hd|4k|remastered)\s*\)/gi,
   /\b(?:official\s+video|official\s+audio|lyric\s+video|full\s+song|audio\s+song|video\s+song)\b/gi,
   /\b(?:new\s+nepali\s+(?:song|adhunik|lok\s+dohori|movie\s+song))\s*\d{0,4}\b/gi,
-  /\b(?:ft\.?|feat\.?)\s+[^|–—-]+/gi,
   /\b\d{4}\b/g, // Stray 4-digit years at ends
 ];
 
@@ -17,6 +16,64 @@ const NOISE_PATTERNS = [
  */
 function hasDevanagari(text) {
   return /[\u0900-\u097F]/.test(text);
+}
+
+/**
+ * Extracts featuring artists from title clauses (e.g. "feat. Artist", "(ft. Artist)", "featuring Artist")
+ */
+function extractFeaturingArtists(text) {
+  if (!text) return { cleaned: text, featuring: [] };
+
+  const featRegex = /(?:[\(\[]\s*)?(?:ft\.?|feat\.?|featuring)\s+([^\)\]|–—\-]+)(?:\s*[\)\]])?/gi;
+  const featuring = [];
+  let cleaned = text;
+
+  let match;
+  while ((match = featRegex.exec(text)) !== null) {
+    if (match[1]) {
+      const names = match[1]
+        .split(/\s*(?:,|&|\band\b|\bx\b)\s*/i)
+        .map(s => s.trim().replace(/^[\(\[]|[\)\]]$/g, '').trim())
+        .filter(s => s.length > 0 && !/^(official|video|audio|hd|4k)$/i.test(s));
+      featuring.push(...names);
+    }
+  }
+
+  cleaned = cleaned.replace(featRegex, ' ').trim();
+  return {
+    cleaned,
+    featuring: [...new Set(featuring)]
+  };
+}
+
+/**
+ * Splits multiple artists by delimiters (comma, &, and, x, with)
+ */
+function splitArtistList(artistStr) {
+  if (!artistStr) return [];
+  return artistStr
+    .split(/\s*(?:,|&|\band\b|\bx\b|\bwith\b)\s*/i)
+    .map(s => s.trim().replace(/^[\(\[]|[\)\]]$/g, '').trim())
+    .filter(s => s.length > 1 && !/^(official|vevo|audio|video|music|entertainment|films)$/i.test(s));
+}
+
+/**
+ * Extracts dual-script title if one part contains both Devanagari and Latin in parentheses
+ * e.g. "फूलको आँखामा (Phool Ko Aankhama)" or "Phool Ko Aankhama (फूलको आँखामा)"
+ */
+function extractDualScriptTitle(text) {
+  if (!text) return null;
+  // Pattern 1: Devanagari (English)
+  const devFirst = text.match(/^([\u0900-\u097F\s\p{P}]+?)\s*[\(\[]([a-zA-Z0-9\s\p{P}]+?)[\)\]]$/u);
+  if (devFirst && devFirst[1] && devFirst[2]) {
+    return { titleNp: devFirst[1].trim(), titleEn: devFirst[2].trim() };
+  }
+  // Pattern 2: English (Devanagari)
+  const enFirst = text.match(/^([a-zA-Z0-9\s\p{P}]+?)\s*[\(\[]([\u0900-\u097F\s\p{P}]+?)[\)\]]$/u);
+  if (enFirst && enFirst[1] && enFirst[2]) {
+    return { titleNp: enFirst[2].trim(), titleEn: enFirst[1].trim() };
+  }
+  return null;
 }
 
 /**
@@ -35,65 +92,135 @@ function stripNoise(text) {
  */
 function parseYouTubeTitle(rawTitle, fallbackChannelName = '') {
   if (!rawTitle) {
-    return { title_np: '', title_en: '', artist_name: fallbackChannelName };
+    const fallbackSingers = fallbackChannelName ? splitArtistList(fallbackChannelName) : [];
+    return {
+      title_np: '',
+      title_en: '',
+      artist_name: fallbackChannelName,
+      singers: fallbackSingers,
+      featuring: []
+    };
   }
 
-  // Remove common outer brackets
-  let cleaned = stripNoise(rawTitle);
+  // 1. Extract featuring artists first before stripping noise
+  const featResult = extractFeaturingArtists(rawTitle);
+  let cleaned = stripNoise(featResult.cleaned);
+  const featuring = [...featResult.featuring];
 
-  // Split by common delimiters: '|', ' - ', ' – ', ' — ', ':'
+  // 2. Split by common delimiters: '|', ' - ', ' – ', ' — ', ':'
   const parts = cleaned.split(/\s*(?:\||–|—|\s+-\s+)\s*/).map(p => p.trim()).filter(Boolean);
 
   let titleNp = '';
   let titleEn = '';
-  let artistName = '';
+  let artistPart = '';
+
+  const cleanChannel = fallbackChannelName
+    ? fallbackChannelName.toLowerCase().replace(/\s*(?:official|channel|vevo|entertainment|films|creation|music).*$/i, '').trim()
+    : '';
 
   if (parts.length === 1) {
-    // Single chunk: check if parenthesized e.g. "Parelima (परेलीमा)"
-    const parenMatch = parts[0].match(/^(.*?)\s*[\(\[]([\u0900-\u097F\s]+)[\)\]](.*)$/);
-    if (parenMatch) {
-      titleEn = (parenMatch[1] + ' ' + parenMatch[3]).trim();
-      titleNp = parenMatch[2].trim();
+    const dual = extractDualScriptTitle(parts[0]);
+    if (dual) {
+      titleNp = dual.titleNp;
+      titleEn = dual.titleEn;
     } else if (hasDevanagari(parts[0])) {
       titleNp = parts[0];
     } else {
       titleEn = parts[0];
     }
   } else if (parts.length >= 2) {
-    // Check parts for Devanagari vs Latin
-    for (const part of parts) {
-      // Check if part is artist name
-      if (fallbackChannelName && part.toLowerCase().includes(fallbackChannelName.toLowerCase().replace(/\s+official.*$/i, ''))) {
-        artistName = part;
-      } else if (hasDevanagari(part)) {
-        if (!titleNp) titleNp = part;
+    // Check if any part is a dual-script title
+    for (let i = 0; i < parts.length; i++) {
+      const dual = extractDualScriptTitle(parts[i]);
+      if (dual) {
+        titleNp = dual.titleNp;
+        titleEn = dual.titleEn;
+        // The other part is almost certainly the artist
+        const otherParts = parts.filter((_, idx) => idx !== i);
+        if (otherParts.length > 0) {
+          artistPart = otherParts[0];
+        }
+        break;
+      }
+    }
+
+    // If dual script was not found, resolve artist and title parts
+    if (!titleNp && !titleEn) {
+      // Check channel matching
+      let artistIdx = -1;
+      if (cleanChannel) {
+        artistIdx = parts.findIndex(p => {
+          const pl = p.toLowerCase();
+          return pl.includes(cleanChannel) || cleanChannel.includes(pl);
+        });
+      }
+
+      // Check artist conjunctions e.g. "Artist1 & Artist2"
+      if (artistIdx === -1) {
+        artistIdx = parts.findIndex(p => /\s*(?:&|\bx\b|\bfeat\.?\b|\bft\.?\b|\bwith\b|,)\s*/i.test(p));
+      }
+
+      if (artistIdx !== -1) {
+        artistPart = parts[artistIdx];
+        const titleParts = parts.filter((_, idx) => idx !== artistIdx);
+        const titleCand = titleParts[0] || '';
+        const dualCand = extractDualScriptTitle(titleCand);
+        if (dualCand) {
+          titleNp = dualCand.titleNp;
+          titleEn = dualCand.titleEn;
+        } else if (hasDevanagari(titleCand)) {
+          titleNp = titleCand;
+        } else {
+          titleEn = titleCand;
+        }
       } else {
-        if (!titleEn) titleEn = part;
-        else if (!artistName) artistName = part;
+        // Fallback: standard convention "[Artist] - [Title]"
+        artistPart = parts[0];
+        const titleCand = parts[1];
+        if (hasDevanagari(titleCand)) {
+          titleNp = titleCand;
+        } else {
+          titleEn = titleCand;
+        }
       }
     }
   }
 
-  // Fallbacks
-  if (!artistName) {
-    artistName = fallbackChannelName.replace(/\s*-\s*topic$/i, '').replace(/\s*(?:official|channel|vevo|entertainment|films|creation).*$/i, '').trim();
+  // Clean fallback channel
+  const cleanedChannelFallback = fallbackChannelName
+    .replace(/\s*-\s*topic$/i, '')
+    .replace(/\s*(?:official|channel|vevo|entertainment|films|creation|music).*$/i, '')
+    .trim();
+
+  if (!artistPart && cleanedChannelFallback) {
+    artistPart = cleanedChannelFallback;
+  }
+
+  // Split primary singers
+  let singers = splitArtistList(artistPart);
+  if (singers.length === 0 && cleanedChannelFallback) {
+    singers = [cleanedChannelFallback];
   }
 
   if (!titleEn && titleNp) {
-    titleEn = parts[0] || titleNp;
+    titleEn = titleNp;
   }
   if (!titleNp && titleEn) {
     titleNp = titleEn;
   }
 
+  const primaryArtistDisplay = singers.join(', ') || artistPart || cleanedChannelFallback;
+
   return {
     title_np: titleNp.trim(),
     title_en: titleEn.trim(),
-    artist_name: artistName.trim()
+    artist_name: primaryArtistDisplay,
+    singers: singers,
+    featuring: featuring
   };
 }
 
 // Export for extension modules or content scripts
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { parseYouTubeTitle, hasDevanagari, stripNoise };
+  module.exports = { parseYouTubeTitle, hasDevanagari, stripNoise, splitArtistList, extractFeaturingArtists, extractDualScriptTitle };
 }

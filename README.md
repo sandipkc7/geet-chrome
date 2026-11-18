@@ -6,8 +6,9 @@ A specialized, zero-quota Chrome Extension (Manifest V3) for the **GeetKosh** ed
 - **Zero API Quota Cost:** Extracts metadata directly from rendered YouTube pages without consuming YouTube Data API v3 units.
 - **Timed Caption Harvester:** Automatically extracts millisecond-accurate transcript tracks (`captionTracks`) from YouTube internal player responses for instant synchronized lyrics.
 - **Credit Box Parser:** Scrapes YouTube's "Music in this video" structured credits (Song, Artist, Album, Composers, Lyricists, Record Label).
+- **Multi-Artist & Featuring Harvester:** Intelligently detects and separates multiple primary singers (`&`, `x`, `,`), featuring artists (`feat.`, `ft.`), lyricists, and composers from titles, descriptions, and YouTube audio credit boxes.
 - **Injected Action Button:** Injects a native-styled **"📥 GeetKosh"** button into YouTube's toolbar.
-- **1-Click Backend Ingestion:** Sends authenticated `POST` requests to `https://geet-backend.sandipkc.com.np/api/admin/songs` with your Admin Bearer Token, automatically linking artists and synchronized lyric lines.
+- **1-Click Backend Ingestion:** Sends authenticated `POST` requests to `https://geet-backend.sandipkc.com.np/api/admin/songs` with your Admin Bearer Token, automatically linking multiple artists, roles, and synchronized lyric lines.
 
 ## Installation in Chrome / Edge / Brave
 1. Clone this repository or open the folder:

@@ -104,6 +104,71 @@
   }
 
   /**
+   * Parses Nepali/English music credits from YouTube description
+   */
+  function parseDescriptionCredits(descText) {
+    const result = {
+      singers: [],
+      featuring: [],
+      lyricists: [],
+      composers: []
+    };
+    if (!descText) return result;
+
+    const lines = descText.split(/\r?\n/);
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+
+      // Match Singer / Vocals / स्वर
+      const singerMatch = line.match(/^(?:vocal|vocals|singer|singers|स्वर)\s*[:\-–]\s*(.+)$/i);
+      if (singerMatch) {
+        if (typeof splitArtistList === 'function') {
+          splitArtistList(singerMatch[1]).forEach(s => result.singers.push(s));
+        } else {
+          result.singers.push(singerMatch[1].trim());
+        }
+        continue;
+      }
+
+      // Match Featuring / Feat
+      const featMatch = line.match(/^(?:featuring|feat\.?|ft\.?)\s*[:\-–]\s*(.+)$/i);
+      if (featMatch) {
+        if (typeof splitArtistList === 'function') {
+          splitArtistList(featMatch[1]).forEach(f => result.featuring.push(f));
+        } else {
+          result.featuring.push(featMatch[1].trim());
+        }
+        continue;
+      }
+
+      // Match Lyrics / Lyricist / शब्द / रचना
+      const lyricMatch = line.match(/^(?:lyrics|lyricist|words|गीत|शब्द|रचना)\s*[:\-–]\s*(.+)$/i);
+      if (lyricMatch) {
+        if (typeof splitArtistList === 'function') {
+          splitArtistList(lyricMatch[1]).forEach(l => result.lyricists.push(l));
+        } else {
+          result.lyricists.push(lyricMatch[1].trim());
+        }
+        continue;
+      }
+
+      // Match Music / Composer / Composition / संगीत
+      const compMatch = line.match(/^(?:music|composer|composition|संगीत)\s*[:\-–]\s*(.+)$/i);
+      if (compMatch) {
+        if (typeof splitArtistList === 'function') {
+          splitArtistList(compMatch[1]).forEach(c => result.composers.push(c));
+        } else {
+          result.composers.push(compMatch[1].trim());
+        }
+        continue;
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Extracts pinned comment text if present (often has lyrics)
    */
   function getPinnedComment() {
@@ -138,6 +203,66 @@
 
     // Prefer structured artist from credits if available
     const finalArtist = credits.artist || parsedTitle.artist_name || channelName;
+
+    // Description credits extraction
+    const descText = document.querySelector('#description-inline-expander, #description')?.innerText
+      || (window.__geetkosh_videoDetails && window.__geetkosh_videoDetails.shortDescription) || '';
+    const descCredits = parseDescriptionCredits(descText);
+
+    // Merge singers (deduplicated)
+    const singersSet = new Set();
+    if (parsedTitle.singers && parsedTitle.singers.length > 0) {
+      parsedTitle.singers.forEach(s => singersSet.add(s));
+    }
+    if (credits.artist) {
+      if (typeof splitArtistList === 'function') {
+        splitArtistList(credits.artist).forEach(s => singersSet.add(s));
+      } else {
+        singersSet.add(credits.artist);
+      }
+    }
+    if (descCredits.singers && descCredits.singers.length > 0) {
+      descCredits.singers.forEach(s => singersSet.add(s));
+    }
+    if (singersSet.size === 0 && finalArtist) {
+      singersSet.add(finalArtist);
+    }
+
+    // Merge featuring artists
+    const featuringSet = new Set();
+    if (parsedTitle.featuring && parsedTitle.featuring.length > 0) {
+      parsedTitle.featuring.forEach(f => featuringSet.add(f));
+    }
+    if (descCredits.featuring && descCredits.featuring.length > 0) {
+      descCredits.featuring.forEach(f => featuringSet.add(f));
+    }
+
+    // Merge lyricists
+    const lyricistsSet = new Set();
+    if (credits.lyricists) {
+      if (typeof splitArtistList === 'function') {
+        splitArtistList(credits.lyricists).forEach(l => lyricistsSet.add(l));
+      } else {
+        lyricistsSet.add(credits.lyricists);
+      }
+    }
+    if (descCredits.lyricists) descCredits.lyricists.forEach(l => lyricistsSet.add(l));
+
+    // Merge composers
+    const composersSet = new Set();
+    if (credits.composers) {
+      if (typeof splitArtistList === 'function') {
+        splitArtistList(credits.composers).forEach(c => composersSet.add(c));
+      } else {
+        composersSet.add(credits.composers);
+      }
+    }
+    if (descCredits.composers) descCredits.composers.forEach(c => composersSet.add(c));
+
+    const singers = Array.from(singersSet);
+    const featuring = Array.from(featuringSet).filter(f => !singersSet.has(f));
+    const lyricists = Array.from(lyricistsSet);
+    const composers = Array.from(composersSet);
 
     // Duration extraction
     let durationSeconds = 0;
@@ -190,7 +315,11 @@
       youtube_video_id: videoId,
       title_np: parsedTitle.title_np || credits.song || rawTitle,
       title_en: parsedTitle.title_en || rawTitle,
-      artist_name: finalArtist,
+      artist_name: singers.join(', ') || finalArtist,
+      singers: singers,
+      featuring: featuring,
+      lyricists: lyricists,
+      composers: composers,
       credits: credits,
       genre: 'Adhunik',
       release_year: releaseYear,
