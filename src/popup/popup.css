@@ -1052,6 +1052,10 @@ input:focus, select:focus {
 .lyrics-tab-pane {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .lyrics-tab-pane.hidden {
@@ -1064,6 +1068,7 @@ input:focus, select:focus {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .sheet-hint {
@@ -1102,7 +1107,9 @@ input:focus, select:focus {
 
 #f-lyrics-raw {
   width: 100%;
-  height: 180px;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
   background: #141417;
   border: 1px solid #3F3F46;
   border-radius: var(--radius-sm);
@@ -1112,7 +1119,7 @@ input:focus, select:focus {
   line-height: 1.6;
   padding: 8px;
   outline: none;
-  resize: vertical;
+  resize: none;
   transition: border-color 0.15s;
 }
 
@@ -1133,10 +1140,14 @@ input:focus, select:focus {
   color: var(--text-muted);
   border-bottom: 1px solid #27272A;
   margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
-.editable-lines-list {
-  max-height: 190px;
+.editable-lines-list,
+.lines-list {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1153,6 +1164,7 @@ input:focus, select:focus {
   border-radius: var(--radius-sm);
   padding: 2px 4px;
   transition: border-color 0.15s;
+  flex-shrink: 0;
 }
 
 .editable-line-row:focus-within {
@@ -1170,7 +1182,7 @@ input:focus, select:focus {
 }
 
 .input-line-chords {
-  width: 85px !important;
+  width: 90px !important;
   flex-shrink: 0;
   font-family: ui-monospace, monospace;
   font-size: 10px !important;
@@ -1224,66 +1236,224 @@ input:focus, select:focus {
   margin-top: 6px;
   padding-top: 4px;
   border-top: 1px solid #27272A;
-}
-
-/* Expanded mode overrides */
-body.expanded-mode #f-lyrics-raw {
-  height: 280px;
-}
-
-body.expanded-mode .editable-lines-list {
-  max-height: 320px;
-}
-
-/* Line Chords Badge in Extension Preview */
-.line-content {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-}
-
-.line-chord-tag {
-  font-family: monospace;
-  font-size: 10px;
-  font-weight: 700;
-  color: #F87171;
-  background: rgba(200, 30, 30, 0.18);
-  border: 1px solid rgba(200, 30, 30, 0.3);
-  border-radius: 3px;
-  padding: 0 4px;
-  width: fit-content;
-  margin-bottom: 2px;
-  line-height: 1.4;
+  flex-shrink: 0;
 }
 
 /* ======================================================== */
-/* 2-Column Split Layout & YouTube Matcher Sidebar          */
+/* 2-Column Split Layout & Hub Architecture                 */
 /* ======================================================== */
 
 .ready-split-layout {
   display: grid;
-  grid-template-columns: 1fr 315px;
+  grid-template-columns: 1fr 320px;
   gap: 10px;
   align-items: stretch;
   flex: 1;
   min-height: 0;
   height: 100%;
+  overflow: hidden;
 }
 
 .editor-main-col {
   min-width: 0;
   height: 100%;
-  max-height: 495px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-right: 2px;
+}
+
+.lyrics-workspace-form {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Compact Top Strip for Song Title & Artist */
+.song-header-strip {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.strip-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.strip-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.strip-label-row label {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+
+.badge-duration-pill {
+  font-size: 9px;
+  font-weight: 700;
+  color: #FAF7F2;
+  background: #27272A;
+  border: 1px solid #3F3F46;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+/* Lyrics Hub Card: Expands to full remaining column height */
+.lyrics-hub-card.flex-grow {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+.lyrics-tab-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Pinned Actions Bar at bottom of workspace */
+.form-actions-bar {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
+.btn-publish {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: linear-gradient(135deg, var(--primary-simrik) 0%, #B91C1C 100%);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn-publish:hover {
+  opacity: 0.9;
+}
+
+/* Sidebar Column: Tabbed between YouTube Matcher & Song Details */
+.youtube-sidebar-col {
+  background: #141417;
+  border: 1px solid #27272A;
+  border-radius: var(--radius-md);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sidebar-tab-bar {
+  display: flex;
+  gap: 4px;
+  background: #111114;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid #27272A;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.sidebar-tab-nav-btn {
+  flex: 1;
+  padding: 5px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.sidebar-tab-nav-btn:hover {
+  color: #FAF7F2;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-tab-nav-btn.active {
+  color: #fff;
+  background: #27272A;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.sidebar-tab-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-tab-pane.hidden {
+  display: none !important;
+}
+
+#sidebar-pane-yt {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#yt-sidebar-results {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding-right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+
+#sidebar-pane-details {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
 }
 
 .btn-text-link {
   background: transparent;
   border: none;
   color: #38BDF8;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 600;
   cursor: pointer;
   padding: 0;
@@ -1309,20 +1479,6 @@ body.expanded-mode .editable-lines-list {
 
 .action-btn-search:hover {
   background: #1D4ED8;
-}
-
-/* Sidebar Column */
-.youtube-sidebar-col {
-  background: #141417;
-  border: 1px solid #27272A;
-  border-radius: var(--radius-md);
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  height: 100%;
-  max-height: 495px;
-  overflow-y: auto;
 }
 
 .sidebar-header {

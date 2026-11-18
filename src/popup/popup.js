@@ -90,6 +90,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const ytSidebarEmpty = document.getElementById('yt-sidebar-empty');
   const ytSidebarResults = document.getElementById('yt-sidebar-results');
 
+  // DOM Elements - Sidebar Tab Switching
+  const sidebarTabBtnYt = document.getElementById('sidebar-tab-btn-yt');
+  const sidebarTabBtnDetails = document.getElementById('sidebar-tab-btn-details');
+  const sidebarPaneYt = document.getElementById('sidebar-pane-yt');
+  const sidebarPaneDetails = document.getElementById('sidebar-pane-details');
+
   // Lyrics Tabbed Hub Elements
   const tabLyricsCountBadge = document.getElementById('tab-lyrics-count-badge');
   const subTrackContainer = document.getElementById('sub-track-container');
@@ -316,6 +322,9 @@ document.addEventListener('DOMContentLoaded', async () => {
    * Executes YouTube sidebar search and displays video cards
    */
   async function triggerYouTubeSidebarSearch(query) {
+    if (typeof switchSidebarTab === 'function') {
+      switchSidebarTab('sidebar-pane-yt');
+    }
     const q = query || ytSidebarSearchInput.value.trim();
     if (!q) {
       showToast('Enter a song title or artist to search YouTube.', 'info');
@@ -430,16 +439,53 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Quick Action: Search from Title
-  btnSearchYtFromTitle.addEventListener('click', () => {
-    const q = `${fTitleEn.value || ''} ${fSingers.value || ''}`.trim();
-    triggerYouTubeSidebarSearch(q);
-  });
+  if (btnSearchYtFromTitle) {
+    btnSearchYtFromTitle.addEventListener('click', () => {
+      const q = `${fTitleEn.value || ''} ${fSingers.value || ''}`.trim();
+      triggerYouTubeSidebarSearch(q);
+    });
+  }
 
   // Quick Action: Search from YouTube ID input
-  btnTriggerYtSearch.addEventListener('click', () => {
-    const q = `${fTitleEn.value || ''} ${fSingers.value || ''}`.trim();
-    triggerYouTubeSidebarSearch(q);
-  });
+  if (btnTriggerYtSearch) {
+    btnTriggerYtSearch.addEventListener('click', () => {
+      const q = `${fTitleEn.value || ''} ${fSingers.value || ''}`.trim();
+      triggerYouTubeSidebarSearch(q);
+    });
+  }
+
+  // ========================================================
+  // SIDEBAR TAB SWITCHER (YouTube Matcher vs Song Details)
+  // ========================================================
+
+  function switchSidebarTab(targetPaneId) {
+    [sidebarTabBtnYt, sidebarTabBtnDetails].forEach(btn => {
+      if (!btn) return;
+      if (btn.dataset.tab === targetPaneId) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    [sidebarPaneYt, sidebarPaneDetails].forEach(pane => {
+      if (!pane) return;
+      if (pane.id === targetPaneId) {
+        pane.classList.remove('hidden');
+        pane.classList.add('active');
+      } else {
+        pane.classList.add('hidden');
+        pane.classList.remove('active');
+      }
+    });
+  }
+
+  if (sidebarTabBtnYt) {
+    sidebarTabBtnYt.addEventListener('click', () => switchSidebarTab('sidebar-pane-yt'));
+  }
+  if (sidebarTabBtnDetails) {
+    sidebarTabBtnDetails.addEventListener('click', () => switchSidebarTab('sidebar-pane-details'));
+  }
 
   // ========================================================
   // UNIVERSAL CATALOG SEARCH & AUTOCOMPLETE
