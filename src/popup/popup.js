@@ -362,6 +362,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     videos.slice(0, 15).forEach(v => {
       const card = document.createElement('div');
       card.className = 'yt-result-card';
+      card.dataset.videoId = v.videoId;
       if (fYoutubeId.value === v.videoId) {
         card.classList.add('selected');
       }
@@ -374,7 +375,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="yt-card-info">
           <span class="yt-card-title" title="${escapeHtml(v.title)}">${escapeHtml(v.title)}</span>
           <span class="yt-card-channel">${escapeHtml(v.channel)}</span>
-          <button type="button" class="btn-select-yt">Select & Link</button>
+          <button type="button" class="btn-select-yt">✓ Link This</button>
         </div>
       `;
 
@@ -385,6 +386,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       card.querySelector('.btn-select-yt').addEventListener('click', (e) => {
         e.stopPropagation();
         selectYouTubeVideoForPreview(v);
+        confirmYouTubeVideoLink(v);
       });
 
       ytSidebarResults.appendChild(card);
@@ -404,31 +406,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Highlight card in results list
     const allCards = ytSidebarResults.querySelectorAll('.yt-result-card');
-    allCards.forEach(c => c.classList.remove('selected'));
+    allCards.forEach(c => {
+      if (c.dataset.videoId === video.videoId) {
+        c.classList.add('selected');
+      } else {
+        c.classList.remove('selected');
+      }
+    });
+
+    // Auto-scroll the sidebar pane smoothly to the top so the confirmation card is fully visible
+    if (sidebarPaneYt) {
+      sidebarPaneYt.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }
 
   /**
    * Confirms and links the selected YouTube video into the song form
    */
-  btnConfirmYtLink.addEventListener('click', () => {
-    if (!pendingSelectedVideo) return;
+  function confirmYouTubeVideoLink(video) {
+    const target = video || pendingSelectedVideo;
+    if (!target) return;
 
-    const vid = pendingSelectedVideo.videoId;
+    const vid = target.videoId;
     fYoutubeId.value = vid;
     prevYtId.textContent = `YT ID: ${vid}`;
-    prevThumbnail.src = pendingSelectedVideo.thumbnail;
-    prevDuration.textContent = pendingSelectedVideo.duration || '0:00';
+    prevThumbnail.src = target.thumbnail;
+    prevDuration.textContent = target.duration || '0:00';
 
     if (currentSongData) {
       currentSongData.youtube_video_id = vid;
-      currentSongData.thumbnail_url = pendingSelectedVideo.thumbnail;
-      currentSongData.duration_seconds = parseDurationString(pendingSelectedVideo.duration);
+      currentSongData.thumbnail_url = target.thumbnail;
+      currentSongData.duration_seconds = parseDurationString(target.duration);
     }
 
     // Update status badge
     updateYtMatchStatus(true);
 
-    showToast(`✓ Linked YouTube Video: "${pendingSelectedVideo.title}"`, 'success');
+    showToast(`✓ Linked YouTube Video: "${target.title}"`, 'success');
+  }
+
+  btnConfirmYtLink.addEventListener('click', () => {
+    confirmYouTubeVideoLink();
   });
 
   btnCancelYtSelect.addEventListener('click', () => {
