@@ -20,6 +20,80 @@ class TranscriptParser {
   }
 
   /**
+   * Fetches authentic caption tracks directly via YouTube's Android InnerTube API.
+   * Completely bypasses WEB client's exp=xpe / PoToken anti-bot blocks that cause 0-byte responses.
+   * @param {string} videoId - YouTube Video ID
+   * @returns {Promise<Array<{id: number, name: string, languageCode: string, baseUrl: string, isAsr: boolean}>>}
+   */
+  static async fetchInnertubeTracks(videoId) {
+    if (!videoId) return [];
+
+    // 1. Try background service worker first (has elevated extension host permissions & in-memory caching)
+    if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      try {
+        const bgRes = await new Promise((resolve) => {
+          chrome.runtime.sendMessage({ action: 'FETCH_YOUTUBE_INNERTUBE_TRACKS', videoId }, (res) => {
+            if (chrome.runtime.lastError || !res?.success) resolve(null);
+            else resolve(res.tracks);
+          });
+        });
+        if (Array.isArray(bgRes) && bgRes.length > 0) return bgRes;
+      } catch (e) {}
+    }
+
+    // 2. Direct fetch fallback
+    try {
+      let apiKey = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+      if (typeof window !== 'undefined' && window.ytcfg?.get) {
+        const key = window.ytcfg.get('INNERTUBE_API_KEY');
+        if (key) apiKey = key;
+      }
+
+      const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          context: {
+            client: {
+              clientName: 'ANDROID',
+              clientVersion: '20.10.38'
+            }
+          },
+          videoId: videoId
+        })
+      });
+
+      if (!res.ok) return [];
+      const data = await res.json();
+      const rawTracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+
+      return rawTracks.map((t, idx) => {
+        let displayName = '';
+        if (Array.isArray(t.name?.runs) && t.name.runs.length > 0) {
+          displayName = t.name.runs.map(r => r.text || '').join('');
+        } else if (t.name?.simpleText) {
+          displayName = t.name.simpleText;
+        } else {
+          displayName = t.languageCode ? t.languageCode.toUpperCase() : `Track ${idx + 1}`;
+        }
+
+        return {
+          id: idx,
+          name: displayName,
+          languageCode: t.languageCode || '',
+          baseUrl: t.baseUrl || '',
+          isAsr: t.kind === 'asr'
+        };
+      });
+    } catch (err) {
+      console.warn('[GeetKosh] InnerTube caption fetch error:', err);
+      return [];
+    }
+  }
+
+  /**
    * Fetches and parses a YouTube timed text track URL
    * @param {string} baseUrl - Base URL from captionTracks
    * @param {string} [translationLang] - Optional translation language code (e.g. 'en' or 'ne')
@@ -34,23 +108,7 @@ class TranscriptParser {
         fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + `tlang=${translationLang}`;
       }
 
-      // Try JSON3 format first (fastest, cleanest structure)
-      const json3Url = fetchUrl.includes('fmt=json3') ? fetchUrl : `${fetchUrl}&fmt=json3`;
-      try {
-        const res = await fetch(json3Url);
-        if (res.ok) {
-          const text = await res.text();
-          if (text && text.trim().length > 0) {
-            const json = JSON.parse(text);
-            const parsed = this.parseJson3(json);
-            if (parsed && parsed.length > 0) return parsed;
-          }
-        }
-      } catch (e) {
-        // Fallback to XML / raw format
-      }
-
-      // Fallback 1: Fetch raw / XML
+      // Try fetching as-is first (handles XML format 3, SRV3, and raw timedtext directly)
       try {
         const rawRes = await fetch(fetchUrl);
         if (rawRes.ok) {
@@ -59,7 +117,28 @@ class TranscriptParser {
             if (text.startsWith('WEBVTT')) {
               return this.parseVtt(text);
             }
+            if (text.startsWith('{')) {
+              try {
+                const json = JSON.parse(text);
+                const parsed = this.parseJson3(json);
+                if (parsed && parsed.length > 0) return parsed;
+              } catch (e) {}
+            }
             const parsed = this.parseXml(text);
+            if (parsed && parsed.length > 0) return parsed;
+          }
+        }
+      } catch (e) {}
+
+      // Fallback 1: Try JSON3 format
+      const json3Url = fetchUrl.includes('fmt=json3') ? fetchUrl : `${fetchUrl}&fmt=json3`;
+      try {
+        const res = await fetch(json3Url);
+        if (res.ok) {
+          const text = await res.text();
+          if (text && text.trim().length > 0) {
+            const json = JSON.parse(text);
+            const parsed = this.parseJson3(json);
             if (parsed && parsed.length > 0) return parsed;
           }
         }
@@ -131,7 +210,9 @@ class TranscriptParser {
   }
 
   /**
-   * Parses YouTube XML timed text format (<text start="12.34" dur="4.5">...</text>)
+   * Parses YouTube XML timed text formats:
+   * 1. Modern SRV3 format (<timedtext format="3"> <body> <p t="1234" d="5678">...</p> )
+   * 2. Classic XML format (<transcript> <text start="12.34" dur="4.5">...</text> )
    */
   static parseXml(xmlString) {
     if (!xmlString) return [];
@@ -144,11 +225,40 @@ class TranscriptParser {
       try {
         const parser = new DOMParser();
         const doc = parser.parseFromString(xmlString, 'text/xml');
-        const textNodes = doc.querySelectorAll('text');
 
+        // Check for <p t="..." d="..."> format (SRV3 format, millisecond timestamps)
+        const pNodes = doc.querySelectorAll('p');
+        if (pNodes && pNodes.length > 0) {
+          pNodes.forEach(node => {
+            const rawText = this.decodeHtml((node.textContent || '').replace(/<[^>]+>/g, '').replace(/\n+/g, ' ').trim());
+            if (!rawText || /^\[(?:music|applause|cheering)\]$/i.test(rawText) || rawText === '♪') return;
+
+            const timeMs = parseInt(node.getAttribute('t') || '0', 10);
+            const durationMs = parseInt(node.getAttribute('d') || '3000', 10);
+            const isDev = /[\u0900-\u097F]/.test(rawText);
+
+            const startValSec = Math.round((timeMs / 1000) * 100) / 100;
+            const endValSec = Math.round(((timeMs + durationMs) / 1000) * 100) / 100;
+
+            lines.push({
+              line_order: order++,
+              time_ms: timeMs,
+              duration_ms: durationMs,
+              start_time: startValSec,
+              end_time: endValSec,
+              text_np: isDev ? rawText : '',
+              text_en: !isDev ? rawText : ''
+            });
+          });
+
+          if (lines.length > 0) return lines;
+        }
+
+        // Check for <text start="..." dur="..."> format (standard seconds format)
+        const textNodes = doc.querySelectorAll('text');
         if (textNodes && textNodes.length > 0) {
           textNodes.forEach(node => {
-            const rawText = this.decodeHtml((node.textContent || '').replace(/\n+/g, ' ').trim());
+            const rawText = this.decodeHtml((node.textContent || '').replace(/<[^>]+>/g, '').replace(/\n+/g, ' ').trim());
             if (!rawText || /^\[(?:music|applause|cheering)\]$/i.test(rawText) || rawText === '♪') return;
 
             const startSec = parseFloat(node.getAttribute('start') || '0');
@@ -179,13 +289,40 @@ class TranscriptParser {
       }
     }
 
-    // Fallback regex parser
+    // Fallback regex parser for <p t="..." d="..."> format
+    const pRegex = /<p\s+t="(\d+)"(?:\s+d="(\d+)")?[^>]*>([\s\S]*?)<\/p>/gi;
+    let pMatch;
+    while ((pMatch = pRegex.exec(xmlString)) !== null) {
+      const timeMs = parseInt(pMatch[1], 10);
+      const durationMs = parseInt(pMatch[2] || '3000', 10);
+      const rawText = this.decodeHtml(pMatch[3].replace(/<[^>]+>/g, '').replace(/\n+/g, ' ').trim());
+
+      if (!rawText || /^\[(?:music|applause|cheering)\]$/i.test(rawText) || rawText === '♪') continue;
+
+      const isDev = /[\u0900-\u097F]/.test(rawText);
+      const startValSec = Math.round((timeMs / 1000) * 100) / 100;
+      const endValSec = Math.round(((timeMs + durationMs) / 1000) * 100) / 100;
+
+      lines.push({
+        line_order: order++,
+        time_ms: timeMs,
+        duration_ms: durationMs,
+        start_time: startValSec,
+        end_time: endValSec,
+        text_np: isDev ? rawText : '',
+        text_en: !isDev ? rawText : ''
+      });
+    }
+
+    if (lines.length > 0) return lines;
+
+    // Fallback regex parser for <text start="..."> format
     const regex = /<text\s+start="([\d.]+)"(?:\s+dur="([\d.]+)")?[^>]*>([\s\S]*?)<\/text>/gi;
     let match;
     while ((match = regex.exec(xmlString)) !== null) {
       const startSec = parseFloat(match[1]);
       const durSec = parseFloat(match[2] || '3');
-      const rawText = this.decodeHtml(match[3]).replace(/\n+/g, ' ').trim();
+      const rawText = this.decodeHtml(match[3].replace(/<[^>]+>/g, '').replace(/\n+/g, ' ').trim());
 
       if (!rawText || /^\[(?:music|applause|cheering)\]$/i.test(rawText) || rawText === '♪') continue;
 

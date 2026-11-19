@@ -1587,7 +1587,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!activeTab?.id) return;
 
-        chrome.tabs.sendMessage(activeTab.id, { action: 'FETCH_SUBTITLE_TRACK', baseUrl: track.baseUrl }, (res) => {
+        chrome.tabs.sendMessage(activeTab.id, {
+          action: 'FETCH_SUBTITLE_TRACK',
+          baseUrl: track.baseUrl,
+          videoId: currentSongData?.youtube_video_id,
+          languageCode: track.languageCode,
+          trackId: selectedIdx
+        }, (res) => {
           if (chrome.runtime.lastError || !res?.success) {
             showToast(`Failed to load captions: ${res?.error || chrome.runtime.lastError?.message}`, 'error');
             return;

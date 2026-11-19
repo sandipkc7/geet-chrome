@@ -129,25 +129,68 @@
   }
 
   /**
-   * Scrapes timestamps and lyrics directly from active YouTube transcript panel if open
+   * Scrapes timestamps and lyrics directly from active YouTube transcript panel
+   * (Supports modern transcript-segment-view-model and legacy ytd-transcript-segment-renderer)
    */
-  function scrapeDomTranscript() {
+  async function ensureAndScrapeDomTranscript() {
     try {
-      const segments = document.querySelectorAll('ytd-transcript-segment-renderer, yt-transcript-segment-renderer');
+      // 1. Check if segments are already in the DOM
+      let segments = document.querySelectorAll(
+        'transcript-segment-view-model, ytd-transcript-segment-renderer, yt-transcript-segment-renderer'
+      );
+
+      // 2. If not found, try to open the transcript drawer automatically
+      if (!segments || segments.length === 0) {
+        // Expand video description if needed
+        const expandBtn = document.querySelector(
+          '#expand, ytd-text-inline-expander #expand, #description-inline-expander #expand'
+        );
+        if (expandBtn && expandBtn.offsetParent !== null) {
+          expandBtn.click();
+          await new Promise(r => setTimeout(r, 250));
+        }
+
+        // Click "Show transcript" button
+        const transcriptBtn = document.querySelector(
+          'button[aria-label="Show transcript"], ytd-video-description-transcript-section-renderer button, ytd-button-renderer[target-id="engagement-panel-searchable-transcript"] button'
+        ) || Array.from(document.querySelectorAll('button')).find(b => {
+          const t = (b.textContent || '').toLowerCase();
+          const l = (b.getAttribute('aria-label') || '').toLowerCase();
+          return t.includes('show transcript') || t.includes('transcript') || t.includes('ट्रान्सक्रिप्ट') ||
+                 l.includes('show transcript') || l.includes('transcript');
+        });
+
+        if (transcriptBtn) {
+          transcriptBtn.click();
+          // Poll up to 1.5s for segments to render
+          for (let i = 0; i < 5; i++) {
+            await new Promise(r => setTimeout(r, 300));
+            segments = document.querySelectorAll(
+              'transcript-segment-view-model, ytd-transcript-segment-renderer, yt-transcript-segment-renderer'
+            );
+            if (segments && segments.length > 0) break;
+          }
+        }
+      }
+
       if (!segments || segments.length === 0) return [];
 
       const lines = [];
       segments.forEach((seg, idx) => {
-        const timeElem = seg.querySelector('.segment-start-offset, .segment-timestamp, #timestamp');
-        const textElem = seg.querySelector('.segment-text, #text, yt-formatted-string');
+        const timeElem = seg.querySelector(
+          '.ytwTranscriptSegmentViewModelTimestamp, .segment-timestamp, .segment-start-offset, #timestamp'
+        );
+        const textElem = seg.querySelector(
+          'span[role="text"], .segment-text, #text, yt-formatted-string'
+        );
         if (!textElem) return;
 
-        const text = (textElem.innerText || '').trim();
+        const text = (textElem.innerText || textElem.textContent || '').trim();
         if (!text) return;
 
         let timeMs = 0;
         if (timeElem) {
-          const timeStr = (timeElem.innerText || '').trim();
+          const timeStr = (timeElem.innerText || timeElem.textContent || '').trim();
           const parts = timeStr.split(':').map(p => parseInt(p, 10));
           if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
             timeMs = (parts[0] * 60 + parts[1]) * 1000;
@@ -161,7 +204,7 @@
           line_order: idx + 1,
           time_ms: timeMs,
           duration_ms: 3000,
-          start_time: Math.round(timeMs / 1000),
+          start_time: Math.round((timeMs / 1000) * 100) / 100,
           end_time: null,
           text_np: isDev ? text : '',
           text_en: !isDev ? text : '',
@@ -526,8 +569,15 @@
     }
 
     // Captions & Synced Subtitles Extraction from YouTube CC
-    // Fallback directly to script tags if bridge tracks are not yet populated
-    if (!currentCaptionTracks || currentCaptionTracks.length === 0) {
+    // 1. Fetch reliable InnerTube Android caption tracks (bypasses WEB client exp=xpe PoToken restrictions)
+    let tracksFromInnertube = [];
+    if (videoId) {
+      tracksFromInnertube = await TranscriptParser.fetchInnertubeTracks(videoId);
+    }
+
+    if (tracksFromInnertube && tracksFromInnertube.length > 0) {
+      currentCaptionTracks = tracksFromInnertube;
+    } else if (!currentCaptionTracks || currentCaptionTracks.length === 0) {
       currentCaptionTracks = getCaptionTracksFromDom();
     }
 
@@ -541,7 +591,7 @@
     }));
 
     if (currentCaptionTracks && currentCaptionTracks.length > 0) {
-      // Find Nepali track first, then English track, then any
+      // Find Nepali track first, then Maithili, Hindi, English, then any
       const isNepali = (t) => {
         const code = (t.languageCode || '').toLowerCase();
         const name = getTrackDisplayName(t, 0).toLowerCase();
@@ -550,11 +600,23 @@
       const isEnglish = (t) => {
         const code = (t.languageCode || '').toLowerCase();
         const name = getTrackDisplayName(t, 0).toLowerCase();
-        return code === 'en' || code.startsWith('en-') || name.includes('english');
+        return code === 'en' || code.startsWith('en-') || name.includes('english') || name.includes('अङ्ग्रेजी');
+      };
+      const isMaithili = (t) => {
+        const code = (t.languageCode || '').toLowerCase();
+        const name = getTrackDisplayName(t, 0).toLowerCase();
+        return code === 'mai' || name.includes('maithili') || name.includes('मैथिली');
+      };
+      const isHindi = (t) => {
+        const code = (t.languageCode || '').toLowerCase();
+        const name = getTrackDisplayName(t, 0).toLowerCase();
+        return code === 'hi' || name.includes('hindi') || name.includes('हिन्दी');
       };
 
       const nepaliTrack = currentCaptionTracks.find(isNepali);
       const englishTrack = currentCaptionTracks.find(isEnglish);
+      const maithiliTrack = currentCaptionTracks.find(isMaithili);
+      const hindiTrack = currentCaptionTracks.find(isHindi);
 
       if (nepaliTrack && nepaliTrack.baseUrl) {
         const nepaliLines = await TranscriptParser.fetchAndParse(nepaliTrack.baseUrl);
@@ -562,7 +624,6 @@
           const englishLines = await TranscriptParser.fetchAndParse(englishTrack.baseUrl);
           lyricLines = TranscriptParser.mergeCaptionTracks(nepaliLines, englishLines);
         } else {
-          // Attempt YouTube auto-translation to Roman/English for full bilingual subtitles
           try {
             const englishLines = await TranscriptParser.fetchAndParse(nepaliTrack.baseUrl, 'en');
             lyricLines = (englishLines && englishLines.length > 0)
@@ -571,6 +632,22 @@
           } catch {
             lyricLines = nepaliLines;
           }
+        }
+      } else if (maithiliTrack && maithiliTrack.baseUrl) {
+        const maithiliLines = await TranscriptParser.fetchAndParse(maithiliTrack.baseUrl);
+        if (englishTrack && englishTrack.baseUrl) {
+          const englishLines = await TranscriptParser.fetchAndParse(englishTrack.baseUrl);
+          lyricLines = TranscriptParser.mergeCaptionTracks(maithiliLines, englishLines);
+        } else {
+          lyricLines = maithiliLines;
+        }
+      } else if (hindiTrack && hindiTrack.baseUrl) {
+        const hindiLines = await TranscriptParser.fetchAndParse(hindiTrack.baseUrl);
+        if (englishTrack && englishTrack.baseUrl) {
+          const englishLines = await TranscriptParser.fetchAndParse(englishTrack.baseUrl);
+          lyricLines = TranscriptParser.mergeCaptionTracks(hindiLines, englishLines);
+        } else {
+          lyricLines = hindiLines;
         }
       } else if (englishTrack && englishTrack.baseUrl) {
         const englishLines = await TranscriptParser.fetchAndParse(englishTrack.baseUrl);
@@ -587,9 +664,9 @@
       }
     }
 
-    // Fallback: If CC fetch returned 0 lines, try active DOM transcript panel if open
+    // Fallback: If CC fetch returned 0 lines, try active DOM transcript panel (auto-opens drawer if needed)
     if (lyricLines.length === 0) {
-      lyricLines = scrapeDomTranscript();
+      lyricLines = await ensureAndScrapeDomTranscript();
     }
 
     const hasRealTimestamps = Array.isArray(lyricLines) && lyricLines.length > 0 && lyricLines.some(l => (l.time_ms ?? 0) > 0);
@@ -698,12 +775,22 @@
     }
 
     if (request.action === 'FETCH_SUBTITLE_TRACK') {
-      TranscriptParser.fetchAndParse(request.baseUrl, request.translationLang || '').then(lines => {
-        const hasReal = Array.isArray(lines) && lines.length > 0 && lines.some(l => (l.time_ms ?? 0) > 0);
-        sendResponse({ success: true, lines, has_real_timestamps: hasReal });
-      }).catch(err => {
-        sendResponse({ success: false, error: err.message });
-      });
+      (async () => {
+        try {
+          let lines = await TranscriptParser.fetchAndParse(request.baseUrl, request.translationLang || '');
+          if ((!lines || lines.length === 0) && request.videoId) {
+            const innerTracks = await TranscriptParser.fetchInnertubeTracks(request.videoId);
+            const matching = innerTracks.find(t => t.languageCode === request.languageCode || t.id === request.trackId);
+            if (matching && matching.baseUrl) {
+              lines = await TranscriptParser.fetchAndParse(matching.baseUrl, request.translationLang || '');
+            }
+          }
+          const hasReal = Array.isArray(lines) && lines.length > 0 && lines.some(l => (l.time_ms ?? 0) > 0);
+          sendResponse({ success: true, lines, has_real_timestamps: hasReal });
+        } catch (err) {
+          sendResponse({ success: false, error: err.message });
+        }
+      })();
       return true;
     }
   });
