@@ -93,10 +93,15 @@ class TranscriptParser {
 
       const isDev = /[\u0900-\u097F]/.test(rawLine);
 
+      const startSec = Math.round((timeMs / 1000) * 100) / 100;
+      const endSec = Math.round(((timeMs + durationMs) / 1000) * 100) / 100;
+
       lines.push({
         line_order: order++,
         time_ms: timeMs,
         duration_ms: durationMs,
+        start_time: startSec,
+        end_time: endSec,
         text_np: isDev ? rawLine : '',
         text_en: !isDev ? rawLine : ''
       });
@@ -133,10 +138,15 @@ class TranscriptParser {
             const durationMs = Math.round(durSec * 1000);
             const isDev = /[\u0900-\u097F]/.test(rawText);
 
+            const startValSec = Math.round(startSec * 100) / 100;
+            const endValSec = Math.round((startSec + durSec) * 100) / 100;
+
             lines.push({
               line_order: order++,
               time_ms: timeMs,
               duration_ms: durationMs,
+              start_time: startValSec,
+              end_time: endValSec,
               text_np: isDev ? rawText : '',
               text_en: !isDev ? rawText : ''
             });
@@ -160,10 +170,14 @@ class TranscriptParser {
       if (!rawText || /^\[(?:music|applause|cheering)\]$/i.test(rawText) || rawText === '♪') continue;
 
       const isDev = /[\u0900-\u097F]/.test(rawText);
+      const timeMs = Math.round(startSec * 1000);
+      const durationMs = Math.round(durSec * 1000);
       lines.push({
         line_order: order++,
-        time_ms: Math.round(startSec * 1000),
-        duration_ms: Math.round(durSec * 1000),
+        time_ms: timeMs,
+        duration_ms: durationMs,
+        start_time: Math.round(startSec * 100) / 100,
+        end_time: Math.round((startSec + durSec) * 100) / 100,
         text_np: isDev ? rawText : '',
         text_en: !isDev ? rawText : ''
       });
@@ -200,10 +214,13 @@ class TranscriptParser {
       if (!rawText || /^\[(?:music|applause|cheering)\]$/i.test(rawText) || rawText === '♪') continue;
 
       const isDev = /[\u0900-\u097F]/.test(rawText);
+      const durationMs = Math.max(1000, endTime - startTime);
       lines.push({
         line_order: order++,
         time_ms: startTime,
-        duration_ms: Math.max(1000, endTime - startTime),
+        duration_ms: durationMs,
+        start_time: Math.round((startTime / 1000) * 100) / 100,
+        end_time: Math.round(((startTime + durationMs) / 1000) * 100) / 100,
         text_np: isDev ? rawText : '',
         text_en: !isDev ? rawText : ''
       });
@@ -258,6 +275,8 @@ class TranscriptParser {
         line_order: order++,
         time_ms: timeMs,
         duration_ms: 3000,
+        start_time: Math.round((timeMs / 1000) * 100) / 100,
+        end_time: Math.round(((timeMs + 3000) / 1000) * 100) / 100,
         text_np: isDev ? text : '',
         text_en: !isDev ? text : ''
       });

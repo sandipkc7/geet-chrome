@@ -67,6 +67,11 @@
           sendPlayerState();
           window.addEventListener('yt-navigate-finish', sendPlayerState);
           window.addEventListener('GEETKOSH_REQUEST_PLAYER_STATE', sendPlayerState);
+          window.addEventListener('message', (e) => {
+            if (e.data && e.data.action === 'GEETKOSH_REQUEST_PLAYER_STATE') {
+              sendPlayerState();
+            }
+          });
         })();
       `;
       (document.head || document.documentElement).appendChild(script);
@@ -84,6 +89,128 @@
       }
     }
   });
+
+  /**
+   * Synchronously extracts caption tracks from YouTube DOM script tags (zero race condition fallback)
+   */
+  function getCaptionTracksFromDom() {
+    try {
+      const scripts = document.querySelectorAll('script');
+      for (const s of scripts) {
+        const text = s.textContent || '';
+        if (text.includes('captionTracks')) {
+          const match = text.match(/"captionTracks":\s*(\[[\s\S]*?\])(?:,\s*"|\})/);
+          if (match) {
+            try {
+              const tracks = JSON.parse(match[1]);
+              if (Array.isArray(tracks) && tracks.length > 0) return tracks;
+            } catch {}
+          }
+        }
+      }
+    } catch (e) {}
+    return [];
+  }
+
+  /**
+   * Intelligently parses raw lyrics from YouTube video description or pinned comments (like on Blogspot)
+   * when Closed Captions (CC) are not available
+   */
+  function parseDescriptionLyrics(descText, pinnedText = '') {
+    const textToSearch = descText || pinnedText;
+    if (!textToSearch) return [];
+
+    const lines = textToSearch.split(/\r?\n/);
+    const resultLines = [];
+    let inLyricsSection = false;
+
+    // Boundary markers that signal the end of the lyrics block
+    const endBoundaryRegex = /^(?:audio\s*credits?|video\s*credits?|credits?|special\s*thanks|cast|starring|singer|singers|lyrics|music|composer|arranged|mixed|mastered|direction|director|producer|camera|editor|choreographer|connect\s*with|social|follow|subscribe|warning|copyright|©|all\s*rights\s*reserved|important\s*notice|unauthorized|download|streaming|available\s*on|tiktok|instagram|facebook)\s*[:\-–]/i;
+
+    // Header markers that signal start of lyrics
+    const startBoundaryRegex = /^(?:lyrics|बोल|गीत(?:का\s*बोल)?|शब्द|गीतका\s*हरफहरु|lyrics\s*in\s*nepali|lyrics\s*in\s*english|गीतको\s*बोल)\s*[:\-–]?\s*$/i;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) {
+        if (inLyricsSection && resultLines.length > 0) {
+          continue;
+        }
+        continue;
+      }
+
+      // Check if this line starts a lyrics block
+      if (startBoundaryRegex.test(line) || /^(?:\[|\()(?:lyrics|बोल|गीत)(?:\]|\))\s*$/i.test(line)) {
+        inLyricsSection = true;
+        continue;
+      }
+
+      // Also check inline header e.g. "Lyrics: line 1 text"
+      const inlineMatch = line.match(/^(?:lyrics|बोल|गीत(?:का\s*बोल)?|शब्द)\s*[:\-–]\s*(.+)$/i);
+      if (inlineMatch && !inLyricsSection) {
+        inLyricsSection = true;
+        const firstLine = inlineMatch[1].trim();
+        if (firstLine.length > 1) {
+          resultLines.push(firstLine);
+        }
+        continue;
+      }
+
+      if (inLyricsSection) {
+        // Check if we hit an end boundary (credit section, disclaimer, etc.)
+        if (endBoundaryRegex.test(line) || line.startsWith('http://') || line.startsWith('https://') || line.startsWith('#')) {
+          if (resultLines.length >= 2) {
+            break; // Finished lyrics block
+          } else {
+            // False positive start, reset
+            inLyricsSection = false;
+            resultLines.length = 0;
+            continue;
+          }
+        }
+
+        // Filter out short bracket cues, disclaimers, or hashtags
+        if (line.startsWith('#') || line.startsWith('©') || /^(?:verse|chorus|antara|sthayi)\s*\d*\s*[:\-–]?$/i.test(line)) {
+          continue;
+        }
+
+        resultLines.push(line);
+      }
+    }
+
+    // Fallback: check pinned comment for a pure lyrics block
+    if (resultLines.length < 2 && pinnedText) {
+      const pinLines = pinnedText.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('http') && !l.startsWith('#'));
+      if (pinLines.length >= 4 && !pinLines.some(l => endBoundaryRegex.test(l))) {
+        return pinLines.map((text, idx) => ({
+          line_order: idx + 1,
+          time_ms: 0,
+          duration_ms: 3000,
+          start_time: 0,
+          end_time: null,
+          text_np: /[\u0900-\u097F]/.test(text) ? text : '',
+          text_en: !/[\u0900-\u097F]/.test(text) ? text : '',
+          chords: ''
+        }));
+      }
+    }
+
+    if (resultLines.length < 2) return [];
+
+    return resultLines.map((text, idx) => {
+      const isDev = /[\u0900-\u097F]/.test(text);
+      return {
+        line_order: idx + 1,
+        time_ms: 0,
+        duration_ms: 3000,
+        start_time: 0,
+        end_time: null,
+        text_np: isDev ? text : '',
+        text_en: !isDev ? text : '',
+        chords: ''
+      };
+    });
+  }
 
   /**
    * Resolves current YouTube Video ID
@@ -324,6 +451,11 @@
     }
 
     // Captions & Synced Subtitles Extraction from YouTube CC
+    // Fallback directly to script tags if bridge tracks are not yet populated
+    if (!currentCaptionTracks || currentCaptionTracks.length === 0) {
+      currentCaptionTracks = getCaptionTracksFromDom();
+    }
+
     let lyricLines = [];
     const formattedTracks = (currentCaptionTracks || []).map((t, idx) => ({
       id: idx,
@@ -369,12 +501,18 @@
       }
     }
 
-    // If no captions found, check pinned comment for LRC or raw text
+    const hasRealTimestamps = Array.isArray(lyricLines) && lyricLines.length > 0;
+
+    // If no CC subtitles found, check pinned comment for LRC, or fallback to description lyrics (like on Blogspot)
     const pinnedComment = getPinnedComment();
     if (lyricLines.length === 0 && pinnedComment) {
       if (pinnedComment.includes('[00:') || pinnedComment.includes('[01:')) {
         lyricLines = TranscriptParser.parseLrc(pinnedComment);
       }
+    }
+
+    if (lyricLines.length === 0) {
+      lyricLines = parseDescriptionLyrics(descText, pinnedComment);
     }
 
     return {
@@ -393,7 +531,8 @@
       duration_seconds: durationSeconds || 240,
       thumbnail_url: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
       view_count: viewCount,
-      sync_status: lyricLines.length > 0 ? 'verified' : 'raw',
+      has_real_timestamps: hasRealTimestamps,
+      sync_status: hasRealTimestamps ? 'verified' : 'raw',
       lyrics: lyricLines,
       caption_tracks: formattedTracks,
       caption_tracks_count: (currentCaptionTracks || []).length,
@@ -455,19 +594,20 @@
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'EXTRACT_SONG_DATA') {
       window.dispatchEvent(new CustomEvent('GEETKOSH_REQUEST_PLAYER_STATE'));
+      window.postMessage({ source: 'GEETKOSH_EXTENSION', action: 'GEETKOSH_REQUEST_PLAYER_STATE' }, '*');
       setTimeout(() => {
         extractSongData().then(data => {
           sendResponse({ success: true, data });
         }).catch(err => {
           sendResponse({ success: false, error: err.message });
         });
-      }, 100);
+      }, 150);
       return true; // Keep message channel open for async response
     }
 
     if (request.action === 'FETCH_SUBTITLE_TRACK') {
       TranscriptParser.fetchAndParse(request.baseUrl).then(lines => {
-        sendResponse({ success: true, lines });
+        sendResponse({ success: true, lines, has_real_timestamps: true });
       }).catch(err => {
         sendResponse({ success: false, error: err.message });
       });

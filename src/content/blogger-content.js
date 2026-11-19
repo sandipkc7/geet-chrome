@@ -96,25 +96,16 @@
    * Scrapes a Blogger Single Song Post page
    */
   function extractPostPage() {
-    // 1. Post Title
-    const titleEl = document.querySelector('.post-title, h2.entry-title, h1.entry-title, h2.post-title');
-    let rawTitle = titleEl ? titleEl.textContent.trim() : document.title;
-    rawTitle = rawTitle.replace(/^Nepali\s+Songs\s+(?:and|&)\s+chords\s*:\s*/i, '').trim();
-    let cleanTitle = (typeof toTitleCase === 'function')
-      ? toTitleCase(rawTitle)
-      : rawTitle;
-
-    // 2. Post Body
-    const bodyEl = document.querySelector('.post-body, .entry-content');
+    // 1. Post Body (detect early to help extract credits if title is missing)
+    const bodyEl = document.querySelector('.post-body, .entry-content, .post-content, #post-body, div[itemprop="articleBody"], .post-outer .post-body, .post .entry-content');
     const rawHtml = bodyEl ? bodyEl.innerHTML : '';
     const rawText = bodyEl ? bodyEl.innerText : '';
 
-    // 3. Artist Detection
+    // 2. Artist Detection from body
     let artistName = '';
-    // Check regex in text: "Artist : Narayan Gopal"
-    const artistMatch = rawText.match(/Artist\s*:\s*([^\n\r]+)/i);
+    const artistMatch = rawText.match(/^(?:Artist|Singer|Singers|Vocal|Vocals|Band)\s*[:\-–]\s*([^\n\r]+)/im);
     if (artistMatch) {
-      artistName = artistMatch[1].trim();
+      artistName = artistMatch[1].replace(/["'“]/g, '').trim();
     }
 
     // Fallback: Label tags at bottom of post
@@ -125,8 +116,33 @@
       }
     }
 
-    if (artistName && typeof toTitleCase === 'function') {
-      artistName = toTitleCase(artistName);
+    // 3. Post Title
+    const titleEl = document.querySelector('.post-title, h1.entry-title, h2.entry-title, h1.post-title, h2.post-title, .entry-header h1, header.entry-header h1, .post h1, h3.post-title');
+    let rawTitle = titleEl ? titleEl.textContent.trim() : document.title;
+    rawTitle = rawTitle
+      .replace(/^Nepali\s+Songs\s+(?:and|&)\s+chords\s*:\s*/i, '')
+      .replace(/^(?:guitar\s+chords\s*&?\s*lyrics|chords\s*&?\s*lyrics)\s*[:\-–]\s*/i, '')
+      .replace(/\s*\((?:chords|lyrics|guitar\s+chords).*\)$/i, '')
+      .trim();
+
+    let cleanTitle = rawTitle;
+    if (rawTitle.includes(' - ')) {
+      const parts = rawTitle.split(' - ');
+      cleanTitle = parts[0].trim();
+      if (!artistName && parts[1]) {
+        artistName = parts[1].replace(/chords?|lyrics?/gi, '').trim();
+      }
+    } else if (/\s+by\s+/i.test(rawTitle)) {
+      const parts = rawTitle.split(/\s+by\s+/i);
+      cleanTitle = parts[0].trim();
+      if (!artistName && parts[1]) {
+        artistName = parts[1].replace(/chords?|lyrics?/gi, '').trim();
+      }
+    }
+
+    if (typeof toTitleCase === 'function') {
+      cleanTitle = toTitleCase(cleanTitle);
+      if (artistName) artistName = toTitleCase(artistName);
     }
 
     // 4. Parse Chords & Lyrics using ChordParser
@@ -135,11 +151,18 @@
       chords_progression: '',
       scale: 'C Major',
       lyrics_lines: [],
-      raw_text: ''
+      raw_text: '',
+      sheet_text: ''
     };
 
     if (typeof ChordParser !== 'undefined') {
       parsed = ChordParser.parseSheet(rawHtml);
+    }
+
+    // Check Scale/Key in body
+    const scaleMatch = rawText.match(/^(?:Scale|Key)\s*[:\-–]\s*([^\n\r]+)/im);
+    if (scaleMatch && (!parsed.scale || parsed.scale === 'C Major')) {
+      parsed.scale = scaleMatch[1].trim();
     }
 
     return {
@@ -147,7 +170,7 @@
       source_name: 'Blogger Chords',
       source_url: window.location.href,
       title_en: cleanTitle,
-      title_np: '', // Optional Devanagari to be filled or AI generated
+      title_np: '', // Devanagari to be filled or auto-transliterated
       artist_name: artistName,
       singers: artistName ? [artistName] : [],
       chords: parsed.chords,

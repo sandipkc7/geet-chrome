@@ -346,6 +346,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
+   * Helper: Parses mm:ss or mm:ss.xx string back to milliseconds
+   */
+  function parseTimeToMs(str) {
+    if (!str) return 0;
+    const clean = str.replace(/[\[\]]/g, '').trim();
+    const parts = clean.split(':');
+    if (parts.length === 2) {
+      const m = parseFloat(parts[0]) || 0;
+      const s = parseFloat(parts[1]) || 0;
+      return Math.round((m * 60 + s) * 1000);
+    } else if (parts.length === 1) {
+      const s = parseFloat(parts[0]) || 0;
+      return Math.round(s * 1000);
+    }
+    return 0;
+  }
+
+  /**
    * Distributes lyric lines evenly across the full song length (in seconds)
    * Leaves natural musical intro (~8%) and outro (~7%) buffers
    */
@@ -1119,9 +1137,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     let parsedLines = Array.isArray(lines) ? [...lines] : [];
     if (parsedLines.length > 0) {
       // If lines don't have custom timestamps or are clamped to first few seconds (dummy 3000ms intervals)
-      const isDummy = parsedLines.every((l, i) => !l.time_ms || Math.abs((l.time_ms ?? 0) - (i * 3000)) < 100);
-      if (isDummy) {
-        parsedLines = distributeLinesEvenly(parsedLines, songDuration);
+      const hasRealTimestamps = Boolean(data.has_real_timestamps || data.is_synced || data.sync_status === 'verified');
+      if (!hasRealTimestamps) {
+        const isDummy = parsedLines.every((l, i) => !l.time_ms || Math.abs((l.time_ms ?? 0) - (i * 3000)) < 100);
+        if (isDummy) {
+          parsedLines = distributeLinesEvenly(parsedLines, songDuration);
+        }
       }
     }
     currentLyricsLines = parsedLines;
@@ -1343,18 +1364,36 @@ document.addEventListener('DOMContentLoaded', async () => {
       const placeholder = isDev ? 'नेपाली बोल हरफ...' : 'Lyric line...';
       const textClass = isDev ? 'input-line-text devanagari' : 'input-line-text';
 
+      let timeStr = '';
+      if (typeof line.time_ms === 'number' && line.time_ms >= 0) {
+        timeStr = formatMs(line.time_ms);
+      } else if (typeof line.start_time === 'number' && line.start_time >= 0) {
+        timeStr = formatMs(Math.round(line.start_time * 1000));
+      }
+
       row.innerHTML = `
         <span class="editable-line-idx">${idx + 1}</span>
+        <input type="text" class="input-line-time font-mono" placeholder="00:00.00" value="${escapeHtml(timeStr)}" title="Start timestamp (mm:ss.ms or mm:ss)" />
         <input type="text" class="input-line-chords font-mono" placeholder="Chords" value="${escapeHtml(chordsVal)}" title="Guitar chords for this line (e.g. F Gm)" />
         <input type="text" class="${textClass}" placeholder="${placeholder}" value="${escapeHtml(textVal || '')}" />
         <button type="button" class="btn-remove-line" title="Delete this line">&times;</button>
       `;
 
+      const timeInp = row.querySelector('.input-line-time');
       const chordInp = row.querySelector('.input-line-chords');
       const textInp = row.querySelector('.input-line-text');
       const btnRemove = row.querySelector('.btn-remove-line');
 
       const onLineChange = () => {
+        const val = timeInp.value.trim();
+        if (val) {
+          const parsedMs = parseTimeToMs(val);
+          line.time_ms = parsedMs;
+          line.start_time = parsedMs / 1000;
+          if (currentSongData) {
+            currentSongData.has_real_timestamps = true;
+          }
+        }
         line.chords = chordInp.value.trim();
         if (activeLyricsScript === 'devanagari') {
           line.text_np = textInp.value;
@@ -1370,6 +1409,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderLyricsPreview(currentLyricsLines);
       };
 
+      timeInp.addEventListener('input', onLineChange);
       chordInp.addEventListener('input', onLineChange);
       textInp.addEventListener('input', onLineChange);
 
@@ -1506,14 +1546,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (btnAddLine) {
     btnAddLine.addEventListener('click', () => {
       const songDuration = currentSongData?.duration_seconds || parseDurationString(prevDuration.textContent) || 210;
+      const lastLine = currentLyricsLines[currentLyricsLines.length - 1];
+      const newTimeMs = lastLine && typeof lastLine.time_ms === 'number' ? lastLine.time_ms + 3000 : 0;
       const newLine = {
+        time_ms: newTimeMs,
+        start_time: newTimeMs / 1000,
         chords: '',
         text_roman: '',
         text_np: '',
         text_en: ''
       };
       currentLyricsLines.push(newLine);
-      currentLyricsLines = distributeLinesEvenly(currentLyricsLines, songDuration);
+      if (!currentSongData?.has_real_timestamps) {
+        currentLyricsLines = distributeLinesEvenly(currentLyricsLines, songDuration);
+      }
       renderEditableLines(currentLyricsLines);
       renderLyricsPreview(currentLyricsLines);
       fLyricsRaw.value = generateSheetFromLines(currentLyricsLines);
@@ -1525,6 +1571,50 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (lastRow) {
         const txt = lastRow.querySelector('.input-line-text');
         if (txt) txt.focus();
+      }
+    });
+  }
+
+  // CC Subtitle Track Selection Dropdown
+  if (fSubTrack) {
+    fSubTrack.addEventListener('change', async (e) => {
+      const selectedIdx = parseInt(e.target.value, 10);
+      const track = currentSongData?.caption_tracks?.[selectedIdx];
+      if (!track || !track.baseUrl) return;
+
+      showToast(`Loading "${track.name || track.languageCode}" captions...`, 'info');
+      try {
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!activeTab?.id) return;
+
+        chrome.tabs.sendMessage(activeTab.id, { action: 'FETCH_SUBTITLE_TRACK', baseUrl: track.baseUrl }, (res) => {
+          if (chrome.runtime.lastError || !res?.success) {
+            showToast(`Failed to load captions: ${res?.error || chrome.runtime.lastError?.message}`, 'error');
+            return;
+          }
+
+          if (res.lines && res.lines.length > 0) {
+            currentLyricsLines = res.lines;
+            if (currentSongData) {
+              currentSongData.has_real_timestamps = true;
+              currentSongData.lyrics_lines = res.lines;
+            }
+            fLyricsRaw.value = generateSheetFromLines(currentLyricsLines);
+            renderEditableLines(currentLyricsLines);
+            renderLyricsPreview(currentLyricsLines);
+            updateLyricsCount(currentLyricsLines.length);
+
+            const hasDevanagari = currentLyricsLines.some(l => containsDevanagari(l.text_np || l.text_roman || l.text_en || (typeof l === 'string' ? l : '')));
+            if (hasDevanagari) {
+              setLyricsScript('devanagari');
+            }
+            showToast(`✓ Loaded ${res.lines.length} timestamped lines from "${track.name || track.languageCode}"!`, 'success');
+          } else {
+            showToast('Caption track had no readable lines.', 'warning');
+          }
+        });
+      } catch (err) {
+        showToast('Error requesting subtitle track: ' + err.message, 'error');
       }
     });
   }
@@ -1676,8 +1766,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       payloadLyrics = currentSongData.lyrics;
     }
 
-    // Ensure lines are distributed evenly across the song duration
-    if (Array.isArray(payloadLyrics) && payloadLyrics.length > 2) {
+    // Ensure lines are distributed evenly across the song duration only if real timestamps not present
+    const hasRealTimestamps = Boolean(
+      currentSongData?.has_real_timestamps ||
+      currentSongData?.is_synced ||
+      (Array.isArray(payloadLyrics) && payloadLyrics.some(l => typeof l.time_ms === 'number' && l.time_ms > 0))
+    );
+    if (!hasRealTimestamps && Array.isArray(payloadLyrics) && payloadLyrics.length > 2) {
       const lastLineMs = payloadLyrics[payloadLyrics.length - 1]?.time_ms || 0;
       if ((lastLineMs / 1000) < (songDuration * 0.35)) {
         payloadLyrics = distributeLinesEvenly(payloadLyrics, songDuration);
@@ -1716,6 +1811,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       featuring: fFeaturing.value.split(',').map(s => s.trim()).filter(Boolean),
       lyricists: fLyricists.value.split(',').map(s => s.trim()).filter(Boolean),
       composers: fComposers.value.split(',').map(s => s.trim()).filter(Boolean),
+      has_real_timestamps: hasRealTimestamps,
+      is_synced: hasRealTimestamps,
+      sync_status: hasRealTimestamps ? 'verified' : (currentSongData?.sync_status || 'raw'),
       lyrics: payloadLyrics
     };
 
