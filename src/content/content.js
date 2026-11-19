@@ -11,105 +11,180 @@
   let isButtonInjected = false;
 
   /**
-   * Injects a main-world bridge to extract live ytInitialPlayerResponse.captions and movie_player
+   * Balanced bracket extractor for nested JSON structures (solves non-greedy regex failure on runs:[...])
+   */
+  function extractBalancedJsonArray(text, startIdx) {
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    let arrayStart = -1;
+
+    for (let i = startIdx; i < text.length; i++) {
+      const char = text[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (char === '\\') {
+        escape = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (!inString) {
+        if (char === '[') {
+          if (depth === 0) arrayStart = i;
+          depth++;
+        } else if (char === ']') {
+          depth--;
+          if (depth === 0 && arrayStart !== -1) {
+            return text.substring(arrayStart, i + 1);
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Processes player state and caption tracks received from Main World Bridge
+   */
+  function handleIncomingBridgeData(payload) {
+    if (!payload) return;
+    if (Array.isArray(payload.captionTracks) && payload.captionTracks.length > 0) {
+      currentCaptionTracks = payload.captionTracks;
+    }
+    if (payload.videoDetails && payload.videoDetails.videoId) {
+      window.__geetkosh_videoDetails = payload.videoDetails;
+    }
+  }
+
+  // 1. Listen for CustomEvent from yt-main-bridge.js (Manifest V3 MAIN world)
+  document.addEventListener('GEETKOSH_MAIN_EVENT', (event) => {
+    try {
+      const payload = typeof event.detail === 'string' ? JSON.parse(event.detail) : event.detail;
+      if (payload && (payload.source === 'GEETKOSH_MAIN_BRIDGE' || payload.source === 'GEETKOSH_BRIDGE')) {
+        handleIncomingBridgeData(payload);
+      }
+    } catch (e) {}
+  });
+
+  // 2. Listen for postMessage backup from yt-main-bridge.js
+  window.addEventListener('message', (event) => {
+    if (event.data && (event.data.source === 'GEETKOSH_BRIDGE' || event.data.source === 'GEETKOSH_MAIN_BRIDGE')) {
+      handleIncomingBridgeData(event.data);
+    }
+  });
+
+  /**
+   * Injects main-world bridge script safely (zero inline-script CSP violations)
+   * and dispatches request event to refresh caption data.
    */
   function injectCaptionBridge() {
     try {
+      // Trigger update on existing bridge
+      document.dispatchEvent(new CustomEvent('GEETKOSH_REQUEST_DATA'));
+      window.dispatchEvent(new CustomEvent('GEETKOSH_REQUEST_PLAYER_STATE'));
+      window.postMessage({ source: 'GEETKOSH_EXTENSION', action: 'GEETKOSH_REQUEST_PLAYER_STATE' }, '*');
+
       if (document.getElementById('geetkosh-caption-bridge')) return;
 
+      // In case content_scripts MAIN world wasn't loaded (e.g. extension reloaded without page reload)
       const script = document.createElement('script');
       script.id = 'geetkosh-caption-bridge';
-      script.textContent = `
-        (function() {
-          function sendPlayerState() {
-            try {
-              let captionTracks = [];
-              let videoDetails = {};
-
-              // 1. Direct Movie Player element (most accurate on live YouTube watch pages)
-              const moviePlayer = document.getElementById('movie_player');
-              if (moviePlayer && typeof moviePlayer.getPlayerResponse === 'function') {
-                const resp = moviePlayer.getPlayerResponse();
-                captionTracks = resp?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-                videoDetails = resp?.videoDetails || {};
-              }
-
-              // 2. Global ytInitialPlayerResponse
-              if ((!captionTracks || !captionTracks.length) && window.ytInitialPlayerResponse) {
-                captionTracks = window.ytInitialPlayerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-                if (!videoDetails.videoId) videoDetails = window.ytInitialPlayerResponse?.videoDetails || {};
-              }
-
-              // 3. Fallback to ytplayer config args
-              if ((!captionTracks || !captionTracks.length) && window.ytplayer && window.ytplayer.config && window.ytplayer.config.args) {
-                try {
-                  const raw = JSON.parse(window.ytplayer.config.args.raw_player_response);
-                  captionTracks = raw?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-                  if (!videoDetails.videoId) videoDetails = raw?.videoDetails || {};
-                } catch (e) {}
-              }
-
-              window.postMessage({
-                source: 'GEETKOSH_BRIDGE',
-                captionTracks: captionTracks,
-                videoDetails: {
-                  title: videoDetails.title || '',
-                  author: videoDetails.author || '',
-                  lengthSeconds: videoDetails.lengthSeconds || 0,
-                  viewCount: videoDetails.viewCount || 0,
-                  videoId: videoDetails.videoId || '',
-                  shortDescription: videoDetails.shortDescription || ''
-                }
-              }, '*');
-            } catch (e) {}
-          }
-
-          sendPlayerState();
-          window.addEventListener('yt-navigate-finish', sendPlayerState);
-          window.addEventListener('GEETKOSH_REQUEST_PLAYER_STATE', sendPlayerState);
-          window.addEventListener('message', (e) => {
-            if (e.data && e.data.action === 'GEETKOSH_REQUEST_PLAYER_STATE') {
-              sendPlayerState();
-            }
-          });
-        })();
-      `;
+      script.src = chrome.runtime.getURL('src/content/yt-main-bridge.js');
       (document.head || document.documentElement).appendChild(script);
     } catch (e) {
       console.warn('[GeetKosh] Bridge injection warning:', e);
     }
   }
 
-  // Listen for data from the injected bridge
-  window.addEventListener('message', (event) => {
-    if (event.data && event.data.source === 'GEETKOSH_BRIDGE') {
-      currentCaptionTracks = event.data.captionTracks || [];
-      if (event.data.videoDetails && event.data.videoDetails.videoId) {
-        window.__geetkosh_videoDetails = event.data.videoDetails;
-      }
-    }
-  });
-
   /**
-   * Synchronously extracts caption tracks from YouTube DOM script tags (zero race condition fallback)
+   * Synchronously extracts caption tracks from YouTube DOM script tags with balanced JSON parser
+   * (Zero race condition fallback when bridge has not fired yet)
    */
   function getCaptionTracksFromDom() {
     try {
       const scripts = document.querySelectorAll('script');
       for (const s of scripts) {
         const text = s.textContent || '';
-        if (text.includes('captionTracks')) {
-          const match = text.match(/"captionTracks":\s*(\[[\s\S]*?\])(?:,\s*"|\})/);
-          if (match) {
-            try {
-              const tracks = JSON.parse(match[1]);
-              if (Array.isArray(tracks) && tracks.length > 0) return tracks;
-            } catch {}
+        const keyIdx = text.indexOf('"captionTracks":');
+        if (keyIdx !== -1) {
+          const bracketIdx = text.indexOf('[', keyIdx);
+          if (bracketIdx !== -1) {
+            const jsonStr = extractBalancedJsonArray(text, bracketIdx);
+            if (jsonStr) {
+              try {
+                const tracks = JSON.parse(jsonStr);
+                if (Array.isArray(tracks) && tracks.length > 0) return tracks;
+              } catch (e) {}
+            }
           }
         }
       }
     } catch (e) {}
     return [];
+  }
+
+  /**
+   * Scrapes timestamps and lyrics directly from active YouTube transcript panel if open
+   */
+  function scrapeDomTranscript() {
+    try {
+      const segments = document.querySelectorAll('ytd-transcript-segment-renderer, yt-transcript-segment-renderer');
+      if (!segments || segments.length === 0) return [];
+
+      const lines = [];
+      segments.forEach((seg, idx) => {
+        const timeElem = seg.querySelector('.segment-start-offset, .segment-timestamp, #timestamp');
+        const textElem = seg.querySelector('.segment-text, #text, yt-formatted-string');
+        if (!textElem) return;
+
+        const text = (textElem.innerText || '').trim();
+        if (!text) return;
+
+        let timeMs = 0;
+        if (timeElem) {
+          const timeStr = (timeElem.innerText || '').trim();
+          const parts = timeStr.split(':').map(p => parseInt(p, 10));
+          if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+            timeMs = (parts[0] * 60 + parts[1]) * 1000;
+          } else if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+            timeMs = (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000;
+          }
+        }
+
+        const isDev = /[\u0900-\u097F]/.test(text);
+        lines.push({
+          line_order: idx + 1,
+          time_ms: timeMs,
+          duration_ms: 3000,
+          start_time: Math.round(timeMs / 1000),
+          end_time: null,
+          text_np: isDev ? text : '',
+          text_en: !isDev ? text : '',
+          chords: ''
+        });
+      });
+
+      return lines;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /**
+   * Resolves clean track display name supporting runs[] and simpleText
+   */
+  function getTrackDisplayName(t, idx) {
+    if (t.name?.simpleText) return t.name.simpleText;
+    if (Array.isArray(t.name?.runs) && t.name.runs.length > 0) {
+      return t.name.runs.map(r => r.text || '').join('');
+    }
+    if (t.languageCode) return t.languageCode.toUpperCase();
+    return `Track ${idx + 1}`;
   }
 
   /**
@@ -459,7 +534,7 @@
     let lyricLines = [];
     const formattedTracks = (currentCaptionTracks || []).map((t, idx) => ({
       id: idx,
-      name: t.name?.simpleText || (t.languageCode ? t.languageCode.toUpperCase() : `Track ${idx + 1}`),
+      name: getTrackDisplayName(t, idx),
       languageCode: t.languageCode || '',
       baseUrl: t.baseUrl || '',
       isAsr: t.kind === 'asr'
@@ -467,8 +542,19 @@
 
     if (currentCaptionTracks && currentCaptionTracks.length > 0) {
       // Find Nepali track first, then English track, then any
-      const nepaliTrack = currentCaptionTracks.find(t => t.languageCode === 'ne' || (t.name?.simpleText || '').toLowerCase().includes('nepali'));
-      const englishTrack = currentCaptionTracks.find(t => t.languageCode === 'en' || (t.name?.simpleText || '').toLowerCase().includes('english'));
+      const isNepali = (t) => {
+        const code = (t.languageCode || '').toLowerCase();
+        const name = getTrackDisplayName(t, 0).toLowerCase();
+        return code === 'ne' || code.startsWith('ne-') || name.includes('nepali') || name.includes('नेपाली');
+      };
+      const isEnglish = (t) => {
+        const code = (t.languageCode || '').toLowerCase();
+        const name = getTrackDisplayName(t, 0).toLowerCase();
+        return code === 'en' || code.startsWith('en-') || name.includes('english');
+      };
+
+      const nepaliTrack = currentCaptionTracks.find(isNepali);
+      const englishTrack = currentCaptionTracks.find(isEnglish);
 
       if (nepaliTrack && nepaliTrack.baseUrl) {
         const nepaliLines = await TranscriptParser.fetchAndParse(nepaliTrack.baseUrl);
@@ -501,7 +587,12 @@
       }
     }
 
-    const hasRealTimestamps = Array.isArray(lyricLines) && lyricLines.length > 0;
+    // Fallback: If CC fetch returned 0 lines, try active DOM transcript panel if open
+    if (lyricLines.length === 0) {
+      lyricLines = scrapeDomTranscript();
+    }
+
+    const hasRealTimestamps = Array.isArray(lyricLines) && lyricLines.length > 0 && lyricLines.some(l => (l.time_ms ?? 0) > 0);
 
     // If no CC subtitles found, check pinned comment for LRC, or fallback to description lyrics (like on Blogspot)
     const pinnedComment = getPinnedComment();
@@ -532,7 +623,7 @@
       thumbnail_url: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
       view_count: viewCount,
       has_real_timestamps: hasRealTimestamps,
-      sync_status: hasRealTimestamps ? 'verified' : 'raw',
+      sync_status: hasRealTimestamps ? 'raw' : 'raw',
       lyrics: lyricLines,
       caption_tracks: formattedTracks,
       caption_tracks_count: (currentCaptionTracks || []).length,
@@ -593,6 +684,7 @@
   // Listen for requests from popup or background worker
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'EXTRACT_SONG_DATA') {
+      document.dispatchEvent(new CustomEvent('GEETKOSH_REQUEST_DATA'));
       window.dispatchEvent(new CustomEvent('GEETKOSH_REQUEST_PLAYER_STATE'));
       window.postMessage({ source: 'GEETKOSH_EXTENSION', action: 'GEETKOSH_REQUEST_PLAYER_STATE' }, '*');
       setTimeout(() => {
@@ -601,13 +693,14 @@
         }).catch(err => {
           sendResponse({ success: false, error: err.message });
         });
-      }, 150);
+      }, 200);
       return true; // Keep message channel open for async response
     }
 
     if (request.action === 'FETCH_SUBTITLE_TRACK') {
-      TranscriptParser.fetchAndParse(request.baseUrl).then(lines => {
-        sendResponse({ success: true, lines, has_real_timestamps: true });
+      TranscriptParser.fetchAndParse(request.baseUrl, request.translationLang || '').then(lines => {
+        const hasReal = Array.isArray(lines) && lines.length > 0 && lines.some(l => (l.time_ms ?? 0) > 0);
+        sendResponse({ success: true, lines, has_real_timestamps: hasReal });
       }).catch(err => {
         sendResponse({ success: false, error: err.message });
       });

@@ -37,26 +37,46 @@ class TranscriptParser {
       // Try JSON3 format first (fastest, cleanest structure)
       const json3Url = fetchUrl.includes('fmt=json3') ? fetchUrl : `${fetchUrl}&fmt=json3`;
       try {
-        const res = await fetch(json3Url, { credentials: 'omit' });
+        const res = await fetch(json3Url);
         if (res.ok) {
           const text = await res.text();
-          const json = JSON.parse(text);
-          const parsed = this.parseJson3(json);
-          if (parsed && parsed.length > 0) return parsed;
+          if (text && text.trim().length > 0) {
+            const json = JSON.parse(text);
+            const parsed = this.parseJson3(json);
+            if (parsed && parsed.length > 0) return parsed;
+          }
         }
       } catch (e) {
         // Fallback to XML / raw format
       }
 
       // Fallback 1: Fetch raw / XML
-      const rawRes = await fetch(fetchUrl, { credentials: 'omit' });
-      if (rawRes.ok) {
-        const text = await rawRes.text();
-        if (text.startsWith('WEBVTT')) {
-          return this.parseVtt(text);
+      try {
+        const rawRes = await fetch(fetchUrl);
+        if (rawRes.ok) {
+          const text = await rawRes.text();
+          if (text && text.trim().length > 0) {
+            if (text.startsWith('WEBVTT')) {
+              return this.parseVtt(text);
+            }
+            const parsed = this.parseXml(text);
+            if (parsed && parsed.length > 0) return parsed;
+          }
         }
-        return this.parseXml(text);
-      }
+      } catch (e) {}
+
+      // Fallback 2: Fetch WebVTT format explicitly
+      const vttUrl = fetchUrl.includes('fmt=vtt') ? fetchUrl : `${fetchUrl}&fmt=vtt`;
+      try {
+        const vttRes = await fetch(vttUrl);
+        if (vttRes.ok) {
+          const text = await vttRes.text();
+          if (text && text.startsWith('WEBVTT')) {
+            const parsed = this.parseVtt(text);
+            if (parsed && parsed.length > 0) return parsed;
+          }
+        }
+      } catch (e) {}
 
       return [];
     } catch (err) {

@@ -44,6 +44,17 @@
         "https://www.youtube.com/shorts*"
       ],
       "js": [
+        "src/content/yt-main-bridge.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/watch*",
+        "https://www.youtube.com/shorts*"
+      ],
+      "js": [
         "src/utils/title-cleaner.js",
         "src/content/transcript-parser.js",
         "src/content/content.js"
@@ -76,6 +87,16 @@
         "src/content/nsc-content.js"
       ],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/content/yt-main-bridge.js"
+      ],
+      "matches": [
+        "https://www.youtube.com/*"
+      ]
     }
   ],
   "options_ui": {
