@@ -226,7 +226,10 @@
                       <!-- Dynamically injected editable line rows -->
                     </div>
                     <div class="lines-actions-row">
-                      <button type="button" id="btn-add-line" class="btn-tiny-action">+ Add Line</button>
+                      <div style="display: flex; gap: 4px; align-items: center;">
+                        <button type="button" id="btn-add-line" class="btn-tiny-action">+ Add Line</button>
+                        <button type="button" id="btn-distribute-timing" class="btn-tiny-action" title="Evenly distribute line timestamps across the entire song length">⏱️ Even Spacing</button>
+                      </div>
                       <button type="button" id="btn-sync-to-sheet" class="btn-tiny-action btn-ghost" title="Re-generate chord sheet from lines">↺ Sync to Sheet</button>
                     </div>
                   </div>

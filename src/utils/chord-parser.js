@@ -176,7 +176,7 @@
         if (cleanText.length > 1) {
           structuredLines.push({
             line_order: structuredLines.length + 1,
-            time_ms: structuredLines.length * 3000,
+            time_ms: 0,
             duration_ms: 3000,
             text_en: cleanText,
             text_np: cleanText,
@@ -186,6 +186,9 @@
         }
       }
     }
+
+    // Evenly distribute lyrics lines through song length (defaults to 210s = 3m 30s)
+    const timedLines = distributeLinesEvenly(structuredLines, durationSeconds);
 
     // Deduplicate chords in order
     const uniqueChords = [];
@@ -200,22 +203,51 @@
     }
 
     // Generate formatted chord sheet text (chords above each line)
-    const sheetText = structuredLines
+    const sheetText = timedLines
       .map(l => (l.chords ? `${l.chords}\n${l.text_en}` : l.text_en))
       .join('\n\n');
 
     // Generate clean lyrics text without chords
-    const plainText = structuredLines.map(l => l.text_en).join('\n');
+    const plainText = timedLines.map(l => l.text_en).join('\n');
 
     return {
       chords: uniqueChords,
       chords_progression: uniqueChords.join(', '),
       scale: estimateScale(uniqueChords),
-      lyrics_lines: structuredLines,
+      lyrics_lines: timedLines,
       sheet_text: sheetText,
       raw_text: sheetText, // Defaults to sheet with chords
       plain_text: plainText
     };
+  }
+
+  /**
+   * Distributes lyric lines evenly across the full song length (in seconds)
+   * Leaves natural musical intro and outro buffers (~8% intro, ~7% outro)
+   */
+  function distributeLinesEvenly(lines, durationSeconds = 210) {
+    if (!Array.isArray(lines) || lines.length === 0) return [];
+    const durSec = (typeof durationSeconds === 'number' && durationSeconds > 30) ? durationSeconds : 210;
+
+    const introSec = Math.min(16, Math.max(6, durSec * 0.08));
+    const outroSec = Math.min(14, Math.max(5, durSec * 0.07));
+    const activeSec = Math.max(20, durSec - introSec - outroSec);
+
+    const count = lines.length;
+    const stepSec = activeSec / count;
+    const lineDurSec = Math.max(2.5, Math.min(stepSec * 0.9, stepSec - 0.4));
+
+    return lines.map((line, idx) => {
+      const startSec = introSec + (idx * stepSec);
+      const timeMs = Math.round(startSec * 1000);
+      const durMs = Math.round(lineDurSec * 1000);
+      return {
+        ...line,
+        line_order: idx + 1,
+        time_ms: timeMs,
+        duration_ms: durMs
+      };
+    });
   }
 
   return {
@@ -224,6 +256,7 @@
     cleanChordLine,
     extractChordProgression,
     estimateScale,
+    distributeLinesEvenly,
     parseSheet
   };
 }));

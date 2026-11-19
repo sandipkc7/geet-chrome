@@ -122,6 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const lyricsList = document.getElementById('lyrics-lines-list');
   const btnReParseSheet = document.getElementById('btn-reparse-sheet');
   const btnAddLine = document.getElementById('btn-add-line');
+  const btnDistributeTiming = document.getElementById('btn-distribute-timing');
   const btnSyncToSheet = document.getElementById('btn-sync-to-sheet');
 
   // Success Screen Links
@@ -190,6 +191,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     const s = Math.floor(totalSec % 60);
     const hundredths = Math.floor((ms % 1000) / 10);
     return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}.${hundredths < 10 ? '0' : ''}${hundredths}`;
+  }
+
+  /**
+   * Distributes lyric lines evenly across the full song length (in seconds)
+   * Leaves natural musical intro (~8%) and outro (~7%) buffers
+   */
+  function distributeLinesEvenly(lines, durationSeconds = 210) {
+    if (!Array.isArray(lines) || lines.length === 0) return [];
+    const durSec = (typeof durationSeconds === 'number' && durationSeconds > 30) ? durationSeconds : 210;
+
+    const introSec = Math.min(16, Math.max(6, durSec * 0.08));
+    const outroSec = Math.min(14, Math.max(5, durSec * 0.07));
+    const activeSec = Math.max(20, durSec - introSec - outroSec);
+
+    const count = lines.length;
+    const stepSec = activeSec / count;
+    const lineDurSec = Math.max(2.5, Math.min(stepSec * 0.9, stepSec - 0.4));
+
+    return lines.map((line, idx) => {
+      const startSec = introSec + (idx * stepSec);
+      const timeMs = Math.round(startSec * 1000);
+      const durMs = Math.round(lineDurSec * 1000);
+      return {
+        ...line,
+        line_order: idx + 1,
+        time_ms: timeMs,
+        duration_ms: durMs
+      };
+    });
   }
 
   /**
@@ -428,6 +458,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!target) return;
 
     const vid = target.videoId;
+    const durSec = parseDurationString(target.duration);
     fYoutubeId.value = vid;
     prevYtId.textContent = `YT ID: ${vid}`;
     prevThumbnail.src = target.thumbnail;
@@ -436,13 +467,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (currentSongData) {
       currentSongData.youtube_video_id = vid;
       currentSongData.thumbnail_url = target.thumbnail;
-      currentSongData.duration_seconds = parseDurationString(target.duration);
+      currentSongData.duration_seconds = durSec;
+    }
+
+    // Automatically redistribute existing lyrics lines across the newly confirmed YouTube duration!
+    if (currentLyricsLines && currentLyricsLines.length > 0) {
+      currentLyricsLines = distributeLinesEvenly(currentLyricsLines, durSec);
+      renderEditableLines(currentLyricsLines);
+      renderLyricsPreview(currentLyricsLines);
+      showToast(`✓ Linked YouTube Video & spaced lyrics evenly across ${target.duration || 'song'}!`, 'success');
+    } else {
+      showToast(`✓ Linked YouTube Video: "${target.title}"`, 'success');
     }
 
     // Update status badge
     updateYtMatchStatus(true);
-
-    showToast(`✓ Linked YouTube Video: "${target.title}"`, 'success');
   }
 
   btnConfirmYtLink.addEventListener('click', () => {
@@ -923,8 +962,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Setup Lyrics in Tabbed Hub
+    const songDuration = data.duration_seconds || 210;
     const lines = data.lyrics_lines || data.lyrics || [];
-    currentLyricsLines = Array.isArray(lines) ? [...lines] : [];
+    let parsedLines = Array.isArray(lines) ? [...lines] : [];
+    if (parsedLines.length > 0) {
+      // If lines don't have custom timestamps or are clamped to first few seconds (dummy 3000ms intervals)
+      const isDummy = parsedLines.every((l, i) => !l.time_ms || Math.abs((l.time_ms ?? 0) - (i * 3000)) < 100);
+      if (isDummy) {
+        parsedLines = distributeLinesEvenly(parsedLines, songDuration);
+      }
+    }
+    currentLyricsLines = parsedLines;
 
     if (data.sheet_text) {
       fLyricsRaw.value = data.sheet_text;
@@ -1178,8 +1226,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    const songDuration = currentSongData?.duration_seconds || parseDurationString(prevDuration.textContent) || 210;
+
     if (typeof ChordParser !== 'undefined') {
-      const parsed = ChordParser.parseSheet(raw);
+      const parsed = ChordParser.parseSheet(raw, songDuration);
       currentLyricsLines = parsed.lyrics_lines;
       renderEditableLines(currentLyricsLines);
       renderLyricsPreview(currentLyricsLines);
@@ -1189,17 +1239,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         fChords.value = parsed.chords_progression;
       }
       if (showNotification) {
-        showToast(`✓ Sheet parsed into ${currentLyricsLines.length} lines with paired chords!`, 'info');
+        showToast(`✓ Sheet parsed into ${currentLyricsLines.length} lines evenly distributed across ${formatDuration(songDuration)}!`, 'info');
       }
     } else {
       const splitLines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-      currentLyricsLines = splitLines.map((line, idx) => ({
-        time_ms: idx * 3000,
-        duration_ms: 3000,
+      const baseLines = splitLines.map((line) => ({
         text_np: line,
         text_roman: line,
-        text_en: line
+        text_en: line,
+        chords: ''
       }));
+      currentLyricsLines = distributeLinesEvenly(baseLines, songDuration);
       renderEditableLines(currentLyricsLines);
       renderLyricsPreview(currentLyricsLines);
       updateLyricsCount(currentLyricsLines.length);
@@ -1225,15 +1275,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Add Line Button in Line Editor
   if (btnAddLine) {
     btnAddLine.addEventListener('click', () => {
+      const songDuration = currentSongData?.duration_seconds || parseDurationString(prevDuration.textContent) || 210;
       const newLine = {
-        time_ms: currentLyricsLines.length * 3000,
-        duration_ms: 3000,
         chords: '',
         text_roman: '',
         text_np: '',
         text_en: ''
       };
       currentLyricsLines.push(newLine);
+      currentLyricsLines = distributeLinesEvenly(currentLyricsLines, songDuration);
       renderEditableLines(currentLyricsLines);
       renderLyricsPreview(currentLyricsLines);
       fLyricsRaw.value = generateSheetFromLines(currentLyricsLines);
@@ -1246,6 +1296,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const txt = lastRow.querySelector('.input-line-text');
         if (txt) txt.focus();
       }
+    });
+  }
+
+  // Distribute Timing Evenly Button in Line Editor
+  if (btnDistributeTiming) {
+    btnDistributeTiming.addEventListener('click', () => {
+      if (!currentLyricsLines || currentLyricsLines.length === 0) {
+        showToast('No lyric lines to distribute.', 'info');
+        return;
+      }
+      const songDuration = currentSongData?.duration_seconds || parseDurationString(prevDuration.textContent) || 210;
+      currentLyricsLines = distributeLinesEvenly(currentLyricsLines, songDuration);
+      renderEditableLines(currentLyricsLines);
+      renderLyricsPreview(currentLyricsLines);
+      showToast(`✓ Evenly spaced ${currentLyricsLines.length} lines across ${formatDuration(songDuration)}!`, 'success');
     });
   }
 
@@ -1287,27 +1352,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnPublish.disabled = true;
     btnPublish.innerHTML = '<div class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></div> Saving...';
 
+    const songDuration = currentSongData?.duration_seconds || parseDurationString(prevDuration.textContent) || 210;
+
     // Parse lyrics lines: use currentLyricsLines or re-parse from fLyricsRaw
     let payloadLyrics = currentLyricsLines;
     const rawVal = fLyricsRaw.value.trim();
     if ((!payloadLyrics || payloadLyrics.length === 0) && rawVal) {
       if (typeof ChordParser !== 'undefined') {
-        const parsedSheet = ChordParser.parseSheet(rawVal);
+        const parsedSheet = ChordParser.parseSheet(rawVal, songDuration);
         payloadLyrics = parsedSheet.lyrics_lines;
         if (!fChords.value.trim() && parsedSheet.chords_progression) {
           fChords.value = parsedSheet.chords_progression;
         }
       } else {
         const splitLines = rawVal.split('\n').map(l => l.trim()).filter(Boolean);
-        payloadLyrics = splitLines.map((line, idx) => ({
-          time_ms: (idx * 3000),
-          duration_ms: 3000,
+        const base = splitLines.map((line) => ({
           text_np: line,
-          text_en: line
+          text_en: line,
+          chords: ''
         }));
+        payloadLyrics = distributeLinesEvenly(base, songDuration);
       }
     } else if (currentSongData && currentSongData.lyrics && currentSongData.lyrics.length > 0 && (!payloadLyrics || !payloadLyrics.length)) {
       payloadLyrics = currentSongData.lyrics;
+    }
+
+    // Ensure lines are distributed evenly across the song duration
+    if (Array.isArray(payloadLyrics) && payloadLyrics.length > 2) {
+      const lastLineMs = payloadLyrics[payloadLyrics.length - 1]?.time_ms || 0;
+      if ((lastLineMs / 1000) < (songDuration * 0.35)) {
+        payloadLyrics = distributeLinesEvenly(payloadLyrics, songDuration);
+      }
     }
 
     const payload = {
@@ -1315,6 +1390,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       title_np: fTitleNp.value.trim() || fTitleEn.value.trim(),
       movie_name: fMovieName.value.trim() || null,
       youtube_video_id: fYoutubeId.value.trim() || (currentSongData?.youtube_video_id ?? null),
+      duration_seconds: songDuration,
       genre: fGenre.value,
       release_year: parseInt(fYear.value, 10) || new Date().getFullYear(),
       scale: fScale.value.trim() || 'C Major',
