@@ -196,6 +196,11 @@
                     <label for="f-sub-track">CC:</label>
                     <select id="f-sub-track"></select>
                   </div>
+                  <!-- Script mode switcher: Roman vs Devanagari Unicode -->
+                  <div class="lyrics-script-toggle">
+                    <button type="button" id="btn-script-roman" class="btn-script-pill active" title="View & edit in Romanized English script">🔤 Roman</button>
+                    <button type="button" id="btn-script-devanagari" class="btn-script-pill" title="View & edit in Nepali Devanagari Unicode script">🇳🇵 देवनागरी</button>
+                  </div>
                 </div>
 
                 <!-- Tab Navigation Bar -->
@@ -226,9 +231,10 @@
                       <!-- Dynamically injected editable line rows -->
                     </div>
                     <div class="lines-actions-row">
-                      <div style="display: flex; gap: 4px; align-items: center;">
+                      <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
                         <button type="button" id="btn-add-line" class="btn-tiny-action">+ Add Line</button>
                         <button type="button" id="btn-distribute-timing" class="btn-tiny-action" title="Evenly distribute line timestamps across the entire song length">⏱️ Even Spacing</button>
+                        <button type="button" id="btn-to-devanagari" class="btn-tiny-action" title="Transliterate Romanized lyrics to Nepali Devanagari Unicode">🇳🇵 To Devanagari</button>
                       </div>
                       <button type="button" id="btn-sync-to-sheet" class="btn-tiny-action btn-ghost" title="Re-generate chord sheet from lines">↺ Sync to Sheet</button>
                     </div>
@@ -238,7 +244,10 @@
                   <div id="pane-sheet" class="lyrics-tab-pane hidden">
                     <div class="sheet-toolbar">
                       <span class="sheet-hint">💡 Edit chords & lyrics directly. Chords on top, lyrics underneath.</span>
-                      <button type="button" id="btn-reparse-sheet" class="btn-tiny-action" title="Re-parse sheet into lines">🪄 Re-parse Lines</button>
+                      <div style="display: flex; gap: 4px; align-items: center;">
+                        <button type="button" id="btn-sheet-to-devanagari" class="btn-tiny-action" title="Transliterate chord sheet lyrics to Devanagari">🇳🇵 To Devanagari</button>
+                        <button type="button" id="btn-reparse-sheet" class="btn-tiny-action" title="Re-parse sheet into lines">🪄 Re-parse Lines</button>
+                      </div>
                     </div>
                     <textarea id="f-lyrics-raw" rows="14" placeholder="Paste or edit chord sheet here (chords on top, lyrics underneath)..."></textarea>
                   </div>

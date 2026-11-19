@@ -1025,6 +1025,42 @@ input:focus, select:focus {
   width: auto;
 }
 
+/* Script Mode Toggle (Roman vs Devanagari) */
+.lyrics-script-toggle {
+  display: inline-flex;
+  background: #18181C;
+  border: 1px solid #27272A;
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.btn-script-pill {
+  background: transparent;
+  border: none;
+  color: #A1A1AA;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.btn-script-pill:hover {
+  color: #FAF7F2;
+}
+
+.btn-script-pill.active {
+  background: var(--primary-simrik);
+  color: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
 /* Tab Navigation Bar */
 .lyrics-tab-bar {
   display: flex;
@@ -1225,6 +1261,28 @@ input:focus, select:focus {
 
 .input-line-text:focus {
   border-color: var(--primary-simrik) !important;
+}
+
+.input-line-text.devanagari {
+  font-family: 'Noto Sans Devanagari', -apple-system, sans-serif !important;
+  font-size: 13px !important;
+  line-height: 2.05 !important;
+  padding-block: 0.25rem !important;
+}
+
+.line-text-roman.devanagari,
+.preview-line-devanagari {
+  font-family: 'Noto Sans Devanagari', -apple-system, sans-serif !important;
+  font-size: 13.5px !important;
+  line-height: 2.05 !important;
+  padding-block: 0.25rem !important;
+}
+
+#f-lyrics-raw.devanagari {
+  font-family: 'Noto Sans Devanagari', -apple-system, sans-serif !important;
+  font-size: 13px !important;
+  line-height: 2.05 !important;
+  padding-block: 0.25rem !important;
 }
 
 .btn-remove-line {

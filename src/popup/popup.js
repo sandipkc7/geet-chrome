@@ -124,6 +124,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnAddLine = document.getElementById('btn-add-line');
   const btnDistributeTiming = document.getElementById('btn-distribute-timing');
   const btnSyncToSheet = document.getElementById('btn-sync-to-sheet');
+  const btnScriptRoman = document.getElementById('btn-script-roman');
+  const btnScriptDevanagari = document.getElementById('btn-script-devanagari');
+  const btnToDevanagari = document.getElementById('btn-to-devanagari');
+  const btnSheetToDevanagari = document.getElementById('btn-sheet-to-devanagari');
 
   // Success Screen Links
   const successTitle = document.getElementById('success-title');
@@ -143,6 +147,145 @@ document.addEventListener('DOMContentLoaded', async () => {
     backend_url: 'https://geet-backend.sandipkc.com.np',
     bearer_token: ''
   };
+
+  // Active Lyrics Script Mode: 'roman' | 'devanagari'
+  let activeLyricsScript = 'roman';
+
+  // ========================================================
+  // NEPALI DEVANAGARI UNICODE TRANSLITERATION ENGINE
+  // ========================================================
+
+  function containsDevanagari(str) {
+    return /[\u0900-\u097F]/.test(str || '');
+  }
+
+  const NEP_DICT = {
+    'mero': 'मेरो', 'timro': 'तिम्रो', 'hamro': 'हाम्रो', 'usko': 'उसको',
+    'timi': 'तिमी', 'timilai': 'तिमीलाई', 'malai': 'मलाई', 'uslai': 'उसलाई', 'hamilai': 'हामीलाई',
+    'ma': 'म', 'ta': 'त', 'ho': 'हो', 'cha': 'छ', 'chha': 'छ', 'chhan': 'छन्', 'chhu': 'छु',
+    'thee': 'थी', 'thiyo': 'थियो', 'thiye': 'थिए', 'pani': 'पनि', 'kina': 'किन', 'kasto': 'कस्तो',
+    'yo': 'यो', 'tyo': 'त्यो', 'sabai': 'सबै', 'jun': 'जुन', 'tara': 'तारा', 'nepal': 'नेपाल',
+    'nepali': 'नेपाली', 'geet': 'गीत', 'dhun': 'धुन', 'sangeet': 'संगीत',
+    'phool': 'फूल', 'phoolko': 'फूलको', 'ful': 'फूल', 'fulko': 'फूलको',
+    'aankha': 'आँखा', 'aankhama': 'आँखामा', 'aakha': 'आँखा', 'aakhama': 'आँखामा',
+    'kaanda': 'काँडा', 'kaandako': 'काँडाको', 'kaandai': 'काँडै', 'phoolai': 'फूलै',
+    'sansar': 'संसार', 'sansara': 'संसार', 'jhulkinchhu': 'झुल्किन्छु', 'jhulkinchu': 'झुल्किन्छु',
+    'maya': 'माया', 'mayale': 'मायाले', 'mayako': 'मायाको', 'prem': 'प्रेम', 'preeti': 'प्रीति',
+    'mutu': 'मुटु', 'mutuma': 'मुटुमा', 'mutuko': 'मुटुको',
+    'mann': 'मन', 'man': 'मन', 'manma': 'मनमा', 'mannma': 'मनमा',
+    'punya': 'पुण्य', 'paap': 'पाप', 'parayein': 'पराएँ', 'paraye': 'पराएँ',
+    'yeti': 'यति', 'uti': 'उति', 'dherai': 'धेरै', 'thorai': 'थोरै', 'diyee': 'दिई', 'diye': 'दिए',
+    'sambandha': 'सम्बन्ध', 'sambandhako': 'सम्बन्धको',
+    'jiban': 'जीवन', 'jiwan': 'जीवन', 'sapana': 'सपना', 'bipana': 'बिपना',
+    'aaja': 'आज', 'bholi': 'भोलि', 'hijo': 'हिजो', 'sadhai': 'सधैं', 'kahile': 'कहिल्यै',
+    'sangai': 'संगै', 'sanga': 'संग', 'bata': 'बाट', 'bhitra': 'भित्र', 'baahira': 'बाहिर',
+    'din': 'दिन', 'raat': 'रात', 'bhanera': 'भनेर', 'bhanchhu': 'भन्छु',
+    'sunana': 'सुनन', 'herana': 'हेरन', 'aau': 'आऊ', 'jaau': 'जाऊ', 'le': 'ले', 'ko': 'को', 'ka': 'का', 'ki': 'की'
+  };
+
+  const NEP_VOWELS = {
+    'aa': 'आ', 'a': 'अ', 'ii': 'ई', 'ee': 'ई', 'i': 'इ', 'uu': 'ऊ', 'oo': 'ऊ', 'u': 'उ',
+    'ri': 'ऋ', 'e': 'ए', 'ai': 'ऐ', 'o': 'ओ', 'au': 'औ', 'am': 'अं', 'ah': 'अः'
+  };
+
+  const NEP_MATRAS = {
+    'aa': 'ा', 'a': '', 'ii': 'ी', 'ee': 'ी', 'i': 'ि', 'uu': 'ू', 'oo': 'ू', 'u': 'ु',
+    'ri': 'ृ', 'e': 'े', 'ai': 'ै', 'o': 'ो', 'au': 'ौ', 'am': 'ं', 'ah': 'ः'
+  };
+
+  const NEP_CONSONANTS = [
+    ['kchh', 'क्ष'], ['ksh', 'क्ष'], ['chhy', 'क्ष्य'], ['chha', 'छ'], ['chh', 'छ्'],
+    ['kh', 'ख्'], ['gh', 'घ्'], ['ng', 'ङ्'], ['ch', 'च्'], ['jh', 'झ्'],
+    ['thh', 'ठ्'], ['tth', 'ठ्'], ['dhh', 'ढ्'], ['ddh', 'ढ्'], ['th', 'थ्'], ['dh', 'ध्'],
+    ['ph', 'फ्'], ['bh', 'भ्'], ['shh', 'ष्'], ['sh', 'श्'], ['gy', 'ज्ञ्'], ['tr', 'त्र्'],
+    ['k', 'क्'], ['g', 'ग्'], ['j', 'ज्'], ['t', 'त्'], ['d', 'द्'], ['n', 'न्'],
+    ['p', 'प्'], ['f', 'फ्'], ['b', 'ब्'], ['m', 'म्'], ['y', 'य्'], ['r', 'र्'],
+    ['l', 'ल्'], ['v', 'व्'], ['w', 'व्'], ['s', 'स्'], ['h', 'ह्'],
+    ['T', 'ट्'], ['D', 'ड्'], ['N', 'ण्']
+  ];
+
+  function transliterateWord(word) {
+    const clean = word.toLowerCase().replace(/[^a-z]/g, '');
+    if (!clean) return word;
+    if (NEP_DICT[clean]) return word.replace(new RegExp(clean, 'i'), NEP_DICT[clean]);
+
+    let i = 0;
+    let out = '';
+    const len = word.length;
+
+    while (i < len) {
+      const ch = word[i];
+      if (!/[a-zA-Z]/.test(ch)) {
+        out += ch;
+        i++;
+        continue;
+      }
+
+      let matchedConsonant = null;
+      let consLen = 0;
+      for (const [seq, dev] of NEP_CONSONANTS) {
+        if (word.substr(i, seq.length).toLowerCase() === seq.toLowerCase()) {
+          matchedConsonant = dev;
+          consLen = seq.length;
+          break;
+        }
+      }
+
+      if (matchedConsonant) {
+        i += consLen;
+        let matchedMatra = null;
+        let vowelLen = 0;
+        for (const v of ['aa', 'ee', 'ii', 'oo', 'uu', 'ai', 'au', 'ri', 'am', 'ah', 'a', 'e', 'i', 'o', 'u']) {
+          if (word.substr(i, v.length).toLowerCase() === v) {
+            matchedMatra = NEP_MATRAS[v];
+            vowelLen = v.length;
+            break;
+          }
+        }
+
+        const baseChar = matchedConsonant.replace('्', '');
+        if (matchedMatra !== null) {
+          out += baseChar + matchedMatra;
+          i += vowelLen;
+        } else {
+          if (i >= len || !/[a-zA-Z]/.test(word[i])) {
+            out += baseChar;
+          } else {
+            out += matchedConsonant;
+          }
+        }
+      } else {
+        let matchedVowel = null;
+        let vLen = 0;
+        for (const v of ['aa', 'ee', 'ii', 'oo', 'uu', 'ai', 'au', 'ri', 'am', 'ah', 'a', 'e', 'i', 'o', 'u']) {
+          if (word.substr(i, v.length).toLowerCase() === v) {
+            matchedVowel = NEP_VOWELS[v];
+            vLen = v.length;
+            break;
+          }
+        }
+        if (matchedVowel) {
+          out += matchedVowel;
+          i += vLen;
+        } else {
+          out += ch;
+          i++;
+        }
+      }
+    }
+
+    return out;
+  }
+
+  function romanToDevanagari(text) {
+    if (!text) return '';
+    return text.split(/(\s+|[.,!?;:'"()\[\]{}]+)/).map(token => {
+      if (/^[a-zA-Z]+$/.test(token)) {
+        return transliterateWord(token);
+      }
+      return token;
+    }).join('');
+  }
 
   /**
    * Shows a temporary toast message
@@ -982,6 +1125,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       fLyricsRaw.value = generateSheetFromLines(currentLyricsLines);
     }
 
+    // Auto-detect if scraped content is in Nepali Devanagari Unicode
+    const hasDevanagari = currentLyricsLines.some(l => containsDevanagari(l.text_np || l.text_roman || l.text_en || (typeof l === 'string' ? l : ''))) || containsDevanagari(data.title_np || '');
+    if (hasDevanagari) {
+      setLyricsScript('devanagari');
+    } else {
+      setLyricsScript('roman');
+    }
+
     renderEditableLines(currentLyricsLines);
     renderLyricsPreview(currentLyricsLines);
     updateLyricsCount(currentLyricsLines.length);
@@ -1032,6 +1183,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const lines = song.lyric_lines || [];
     currentLyricsLines = Array.isArray(lines) ? [...lines] : [];
+
+    // Auto-detect if catalog song is primarily in Nepali Devanagari script
+    const hasDevanagari = currentLyricsLines.some(l => containsDevanagari(l.text_np || '')) || containsDevanagari(song.title_np || '');
+    if (hasDevanagari) {
+      setLyricsScript('devanagari');
+    } else {
+      setLyricsScript('roman');
+    }
+
     fLyricsRaw.value = generateSheetFromLines(currentLyricsLines);
     renderEditableLines(currentLyricsLines);
     renderLyricsPreview(currentLyricsLines);
@@ -1096,13 +1256,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
+   * Sets the active lyrics script mode ('roman' or 'devanagari')
+   */
+  function setLyricsScript(script) {
+    activeLyricsScript = script;
+    if (btnScriptRoman && btnScriptDevanagari) {
+      if (script === 'devanagari') {
+        btnScriptDevanagari.classList.add('active');
+        btnScriptRoman.classList.remove('active');
+      } else {
+        btnScriptRoman.classList.add('active');
+        btnScriptDevanagari.classList.remove('active');
+      }
+    }
+    if (fLyricsRaw) {
+      if (script === 'devanagari') {
+        fLyricsRaw.classList.add('devanagari');
+      } else {
+        fLyricsRaw.classList.remove('devanagari');
+      }
+    }
+    renderEditableLines(currentLyricsLines);
+    renderLyricsPreview(currentLyricsLines);
+    fLyricsRaw.value = generateSheetFromLines(currentLyricsLines);
+  }
+
+  /**
    * Formats structured lines into standard chord sheet text
    */
   function generateSheetFromLines(lines) {
     if (!lines || !lines.length) return '';
     return lines.map(l => {
       const chords = (l.chords || l.chord || '').trim();
-      const text = (l.text_roman || l.text_en || l.text_np || (typeof l === 'string' ? l : '')).trim();
+      const isDev = activeLyricsScript === 'devanagari';
+      const text = (isDev
+        ? (l.text_np || l.text_roman || l.text_en || (typeof l === 'string' ? l : ''))
+        : (l.text_roman || l.text_en || l.text_np || (typeof l === 'string' ? l : ''))).trim();
       if (chords && text) {
         return `${chords}\n${text}`;
       } else if (chords) {
@@ -1130,18 +1319,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    const isDev = activeLyricsScript === 'devanagari';
+
     list.forEach((line, idx) => {
       const row = document.createElement('div');
       row.className = 'editable-line-row';
       row.dataset.index = idx;
 
       const chordsVal = line.chords || line.chord || '';
-      const textVal = line.text_roman || line.text_en || line.text_np || (typeof line === 'string' ? line : '');
+      const textVal = isDev
+        ? (line.text_np || (containsDevanagari(line.text_roman || line.text_en || '') ? (line.text_roman || line.text_en) : ''))
+        : (line.text_roman || line.text_en || (!containsDevanagari(line.text_np || '') ? line.text_np : ''));
+
+      const placeholder = isDev ? 'नेपाली बोल हरफ...' : 'Lyric line...';
+      const textClass = isDev ? 'input-line-text devanagari' : 'input-line-text';
 
       row.innerHTML = `
         <span class="editable-line-idx">${idx + 1}</span>
         <input type="text" class="input-line-chords font-mono" placeholder="Chords" value="${escapeHtml(chordsVal)}" title="Guitar chords for this line (e.g. F Gm)" />
-        <input type="text" class="input-line-text" placeholder="Lyric line..." value="${escapeHtml(textVal)}" />
+        <input type="text" class="${textClass}" placeholder="${placeholder}" value="${escapeHtml(textVal || '')}" />
         <button type="button" class="btn-remove-line" title="Delete this line">&times;</button>
       `;
 
@@ -1151,9 +1347,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const onLineChange = () => {
         line.chords = chordInp.value.trim();
-        line.text_roman = textInp.value;
-        line.text_np = textInp.value;
-        line.text_en = textInp.value;
+        if (activeLyricsScript === 'devanagari') {
+          line.text_np = textInp.value;
+          if (!line.text_roman) {
+            line.text_roman = '';
+          }
+        } else {
+          line.text_roman = textInp.value;
+          line.text_en = textInp.value;
+        }
         // Sync to sheet and preview
         fLyricsRaw.value = generateSheetFromLines(currentLyricsLines);
         renderLyricsPreview(currentLyricsLines);
@@ -1184,6 +1386,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     lyricsList.innerHTML = '';
     if (count > 0) {
+      const isDev = activeLyricsScript === 'devanagari';
+
       lines.forEach((line, idx) => {
         const row = document.createElement('div');
         row.className = 'line-row';
@@ -1193,7 +1397,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           timeStr = formatMs(line.time_ms);
         }
 
-        const textStr = line.text_np || line.text_roman || line.text_en || (typeof line === 'string' ? line : '');
+        const textStr = isDev
+          ? (line.text_np || line.text_roman || line.text_en || (typeof line === 'string' ? line : ''))
+          : (line.text_roman || line.text_en || line.text_np || (typeof line === 'string' ? line : ''));
+
+        const lineTextClass = isDev ? 'line-text devanagari preview-line-devanagari' : 'line-text';
+
         const chordHtml = line.chords
           ? `<div class="line-chord-tag">🎸 ${escapeHtml(line.chords)}</div>`
           : '';
@@ -1202,7 +1411,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span class="line-time">${timeStr}</span>
           <div class="line-content">
             ${chordHtml}
-            <span class="line-text">${escapeHtml(textStr)}</span>
+            <span class="${lineTextClass}">${escapeHtml(textStr)}</span>
           </div>
         `;
         lyricsList.appendChild(row);
@@ -1230,7 +1439,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (typeof ChordParser !== 'undefined') {
       const parsed = ChordParser.parseSheet(raw, songDuration);
-      currentLyricsLines = parsed.lyrics_lines;
+      currentLyricsLines = parsed.lyrics_lines.map(l => {
+        const txt = (l.text_roman || l.text_en || l.text_np || '').trim();
+        const isDev = containsDevanagari(txt);
+        return {
+          ...l,
+          text_np: isDev ? txt : (l.text_np || ''),
+          text_roman: isDev ? (l.text_roman || '') : txt,
+          text_en: isDev ? (l.text_en || '') : txt
+        };
+      });
       renderEditableLines(currentLyricsLines);
       renderLyricsPreview(currentLyricsLines);
       updateLyricsCount(currentLyricsLines.length);
@@ -1243,12 +1461,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } else {
       const splitLines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-      const baseLines = splitLines.map((line) => ({
-        text_np: line,
-        text_roman: line,
-        text_en: line,
-        chords: ''
-      }));
+      const baseLines = splitLines.map((line) => {
+        const isDev = containsDevanagari(line);
+        return {
+          text_np: isDev ? line : '',
+          text_roman: isDev ? '' : line,
+          text_en: isDev ? '' : line,
+          chords: ''
+        };
+      });
       currentLyricsLines = distributeLinesEvenly(baseLines, songDuration);
       renderEditableLines(currentLyricsLines);
       renderLyricsPreview(currentLyricsLines);
@@ -1323,6 +1544,75 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // Script Mode Switcher Buttons
+  if (btnScriptRoman) {
+    btnScriptRoman.addEventListener('click', () => {
+      setLyricsScript('roman');
+    });
+  }
+
+  if (btnScriptDevanagari) {
+    btnScriptDevanagari.addEventListener('click', () => {
+      setLyricsScript('devanagari');
+    });
+  }
+
+  // Transliterate Line-by-Line to Devanagari Unicode
+  if (btnToDevanagari) {
+    btnToDevanagari.addEventListener('click', () => {
+      if (!currentLyricsLines || currentLyricsLines.length === 0) {
+        showToast('No lyrics lines to convert.', 'info');
+        return;
+      }
+      currentLyricsLines.forEach(l => {
+        const sourceText = l.text_roman || l.text_en || l.text_np || (typeof l === 'string' ? l : '');
+        if (sourceText) {
+          if (!containsDevanagari(sourceText)) {
+            l.text_np = romanToDevanagari(sourceText);
+          } else {
+            l.text_np = sourceText;
+          }
+        }
+      });
+
+      // Also auto-transliterate song title if Nepali title is empty or matches Roman title
+      if (fTitleEn.value && (!fTitleNp.value.trim() || fTitleNp.value === fTitleEn.value)) {
+        fTitleNp.value = romanToDevanagari(fTitleEn.value);
+      }
+
+      setLyricsScript('devanagari');
+      showToast(`✓ Converted ${currentLyricsLines.length} lines to Nepali Devanagari Unicode!`, 'success');
+    });
+  }
+
+  // Transliterate Chord Sheet Textarea to Devanagari Unicode
+  if (btnSheetToDevanagari) {
+    btnSheetToDevanagari.addEventListener('click', () => {
+      const raw = fLyricsRaw.value;
+      if (!raw.trim()) {
+        showToast('Chord sheet is empty.', 'info');
+        return;
+      }
+      const rawLines = raw.split('\n');
+      const converted = rawLines.map(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return line;
+        if (typeof ChordParser !== 'undefined' && ChordParser.isChordLine(trimmed)) {
+          return line; // Preserve chord lines
+        }
+        if (containsDevanagari(trimmed)) {
+          return line;
+        }
+        return romanToDevanagari(line);
+      }).join('\n');
+
+      fLyricsRaw.value = converted;
+      reparseSheetTextarea(false);
+      setLyricsScript('devanagari');
+      showToast('✓ Converted chord sheet to Nepali Devanagari Unicode!', 'success');
+    });
+  }
+
   // ========================================================
   // MERGE INTO EXISTING CATALOG SONG ACTION
   // ========================================================
@@ -1385,9 +1675,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
+    // Ensure both text_np (Nepali Devanagari Unicode) and text_roman are populated
+    if (Array.isArray(payloadLyrics)) {
+      payloadLyrics = payloadLyrics.map((l, idx) => {
+        const rawNp = (l.text_np || (containsDevanagari(l.text_roman || l.text_en || '') ? (l.text_roman || l.text_en) : '')).trim();
+        const rawRo = (l.text_roman || l.text_en || (!containsDevanagari(l.text_np || '') ? l.text_np : '')).trim();
+        const npFinal = rawNp || (rawRo ? romanToDevanagari(rawRo) : '');
+        const roFinal = rawRo || (rawNp ? rawNp : '');
+        return {
+          ...l,
+          line_order: idx + 1,
+          text_np: npFinal,
+          text_roman: roFinal,
+          text_en: roFinal
+        };
+      });
+    }
+
     const payload = {
       title_en: fTitleEn.value.trim(),
-      title_np: fTitleNp.value.trim() || fTitleEn.value.trim(),
+      title_np: fTitleNp.value.trim() || romanToDevanagari(fTitleEn.value.trim()) || fTitleEn.value.trim(),
       movie_name: fMovieName.value.trim() || null,
       youtube_video_id: fYoutubeId.value.trim() || (currentSongData?.youtube_video_id ?? null),
       duration_seconds: songDuration,
