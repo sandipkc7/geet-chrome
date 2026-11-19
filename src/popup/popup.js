@@ -288,16 +288,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
-   * Shows a temporary toast message
+   * Shows a temporary toast message in the bottom-right corner
    */
+  let toastTimer = null;
   function showToast(message, type = 'info') {
     if (!toast) return;
+    if (toastTimer) clearTimeout(toastTimer);
     toast.textContent = message;
     toast.className = `toast toast-${type}`;
     toast.classList.remove('hidden');
-    setTimeout(() => {
+    toastTimer = setTimeout(() => {
       toast.classList.add('hidden');
-    }, 3500);
+    }, 3000);
+  }
+
+  if (toast) {
+    toast.addEventListener('click', () => {
+      if (toastTimer) clearTimeout(toastTimer);
+      toast.classList.add('hidden');
+    });
   }
 
   /**
