@@ -98,7 +98,7 @@
   /**
    * Full parse of raw text / HTML into structured chords and lyric lines with chords paired
    */
-  function parseSheet(rawContent) {
+  function parseSheet(rawContent, durationSeconds = 210) {
     if (!rawContent) {
       return {
         chords: [],
