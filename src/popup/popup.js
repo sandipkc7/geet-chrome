@@ -383,11 +383,31 @@ document.addEventListener('DOMContentLoaded', async () => {
       const startSec = introSec + (idx * stepSec);
       const timeMs = Math.round(startSec * 1000);
       const durMs = Math.round(lineDurSec * 1000);
+
+      const isString = typeof line === 'string';
+      const rawText = isString ? line.trim() : (line.text_roman || line.text_en || line.text_np || '').trim();
+      const isDev = isString ? containsDevanagari(rawText) : containsDevanagari(line.text_np || rawText);
+
+      const baseObj = isString
+        ? {
+            text_np: isDev ? rawText : '',
+            text_roman: isDev ? '' : rawText,
+            text_en: isDev ? '' : rawText,
+            chords: ''
+          }
+        : {
+            ...line,
+            text_np: line.text_np || (isDev ? rawText : ''),
+            text_roman: line.text_roman || (!isDev ? rawText : ''),
+            text_en: line.text_en || line.text_roman || (!isDev ? rawText : ''),
+            chords: line.chords || line.chord || ''
+          };
+
       return {
-        ...line,
+        ...baseObj,
         line_order: idx + 1,
-        time_ms: timeMs,
-        duration_ms: durMs
+        time_ms: (typeof baseObj.time_ms === 'number' && baseObj.time_ms >= 0) ? baseObj.time_ms : timeMs,
+        duration_ms: (typeof baseObj.duration_ms === 'number' && baseObj.duration_ms > 0) ? baseObj.duration_ms : durMs
       };
     });
   }
@@ -461,6 +481,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else if (sourceType === 'NEPALISONGCHORD') {
       sourceBadge.classList.add('badge-source-nsc');
       sourceBadge.textContent = 'NepaliSongChord';
+    } else if (sourceType === 'GENIUS') {
+      sourceBadge.classList.add('badge-source-genius');
+      sourceBadge.textContent = 'Genius';
     } else if (sourceType === 'CATALOG') {
       sourceBadge.classList.add('badge-source-catalog');
       sourceBadge.textContent = 'GeetKosh';
@@ -924,7 +947,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (activeTab && activeTab.url && activeTab.url.includes(chrome.runtime.id)) {
         const allTabs = await chrome.tabs.query({});
         const webTab = allTabs.find(t => t.url && !t.url.includes(chrome.runtime.id) && (
-          t.url.includes('youtube.com') || t.url.includes('.blogspot.com') || t.url.includes('nepalisongchord.com')
+          t.url.includes('youtube.com') || t.url.includes('.blogspot.com') || t.url.includes('nepalisongchord.com') || t.url.includes('genius.com')
         ));
         if (webTab) {
           activeTab = webTab;
@@ -961,7 +984,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // 4. Fallback: Generic Tab
+    // 4. Genius.com Detection (genius.com)
+    if (url.includes('genius.com/')) {
+      updateSourceIndicator('GENIUS', activeTab.title || 'Genius.com Lyrics');
+      sendExtractMessage(activeTab.id, 'GENIUS');
+      return;
+    }
+
+    // 5. Fallback: Generic Tab
     updateSourceIndicator('GENERIC', activeTab.title || 'Web Page');
     setViewState('not-supported');
   }
@@ -1082,14 +1112,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnPublishText.textContent = 'Publish to GeetKosh';
 
     // Preview Card
-    const thumb = data.thumbnail_url || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80';
+    const thumb = data.thumbnail_url || data.song_art_image || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80';
     prevThumbnail.src = thumb;
     prevDuration.textContent = formatDuration(data.duration_seconds || 0);
     prevYtId.textContent = data.youtube_video_id ? `YT ID: ${data.youtube_video_id}` : 'YT ID: None';
 
     // Inputs (Auto-capitalized first letter of each word)
-    fTitleEn.value = formatCase(data.title_en || '');
-    fTitleNp.value = (data.title_np || '').trim();
+    const rawTitle = data.title_en || data.title || '';
+    fTitleEn.value = formatCase(rawTitle);
+    fTitleNp.value = (data.title_np || (containsDevanagari(rawTitle) ? rawTitle : '')).trim();
 
     const singersList = (data.singers && data.singers.length > 0)
       ? data.singers

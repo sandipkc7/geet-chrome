@@ -762,6 +762,7 @@ input:focus, select:focus {
 .badge-source-yt { background: #DC2626; color: #fff; }
 .badge-source-blogger { background: #EA580C; color: #fff; }
 .badge-source-nsc { background: #2563EB; color: #fff; }
+.badge-source-genius { background: #FFFF64; color: #000; font-weight: 800; }
 .badge-source-catalog { background: #7C3AED; color: #fff; }
 .badge-source-generic { background: #52525B; color: #fff; }
 

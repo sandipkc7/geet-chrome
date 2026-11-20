@@ -23,7 +23,8 @@
     "http://*.blogspot.com/*",
     "http://*.nepalisongchord.com/*",
     "https://*.nepalisongchord.com/*",
-    "https://*.genius.com/*"
+    "https://*.genius.com/*",
+    "https://genius.com/*"
   ],
   "action": {
     "default_popup": "src/popup/popup.html",
@@ -91,9 +92,11 @@
     },
     {
       "matches": [
-        "https://*.genius.com/*"
+        "https://*.genius.com/*",
+        "https://genius.com/*"
       ],
       "js": [
+        "src/utils/title-cleaner.js",
         "src/content/genius-content.js"
       ],
       "run_at": "document_idle"
