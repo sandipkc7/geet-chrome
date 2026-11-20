@@ -22,7 +22,8 @@
     "https://*.blogspot.com/*",
     "http://*.blogspot.com/*",
     "http://*.nepalisongchord.com/*",
-    "https://*.nepalisongchord.com/*"
+    "https://*.nepalisongchord.com/*",
+    "https://*.genius.com/*"
   ],
   "action": {
     "default_popup": "src/popup/popup.html",
@@ -85,6 +86,15 @@
         "src/utils/title-cleaner.js",
         "src/utils/chord-parser.js",
         "src/content/nsc-content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*.genius.com/*"
+      ],
+      "js": [
+        "src/content/genius-content.js"
       ],
       "run_at": "document_idle"
     }
